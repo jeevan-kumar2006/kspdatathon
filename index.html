@@ -618,9 +618,16 @@ async function loadAll() {
 }
 
 // ── 启动 ────────────────────────────────────────
+// ── 启动 ────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
+  // Auto-detect API URL: if served from FastAPI use same origin, else use localhost:8000
+  const servedFromBackend = window.location.port === '8000';
+  if (servedFromBackend) {
+    window.API = '';  // same origin — /api/health instead of http://localhost:8000/api/health
+  }
+
   initMap();
-  fetch(API+'/health')
+  fetch((window.API || API)+'/health')
     .then(r=>r.json())
     .then(d=>{
       console.log('[KSP] Backend health:', d);
