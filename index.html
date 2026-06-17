@@ -233,7 +233,7 @@ body{background:#050505;color:#e0e0e0;font-family:'Barlow Condensed',sans-serif;
 <div id="toast" class="toast" role="alert" aria-live="polite"></div>
 
 <script>
-const API = 'http://localhost:8000/api';
+let API = 'http://localhost:8000/api';
 let map, network, charts = {};
 let boundaryLayer = null, stationLayer = null, incidentLayer = null, hotspotMarkers = [];
 let districtCrimeMap = {}; // district -> {count, avg_sev}
