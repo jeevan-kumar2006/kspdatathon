@@ -4,8 +4,11 @@ Integrates: Overpass API, Nominatim, Open-Meteo, Wikipedia REST API
 ML: KMeans clustering, Isolation Forest, Linear Regression
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from typing import Optional
 import sqlite3, random, datetime, json, time, urllib.request, urllib.parse
 import numpy as np
@@ -13,12 +16,34 @@ from collections import Counter, defaultdict
 from sklearn.cluster import KMeans
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import LabelEncoder, StandardScaler
+import os
 
-app = FastAPI(title="KSP Crime Intelligence Platform", version="2.0.0")
+# ── Lifespan: replaces deprecated @app.on_event("startup") ───────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    print("[KSP] Starting up — initializing database...")
+    init_db()
+    generate_data()
+    print("[KSP] Startup complete — server ready")
+    yield
+    # Shutdown logic (if needed)
+    print("[KSP] Shutting down")
+
+app = FastAPI(title="KSP Crime Intelligence Platform", version="2.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True,
                    allow_methods=["*"], allow_headers=["*"])
 
 DB_PATH = "ksp_crime.db"
+STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# ── Serve index.html at root — fixes the 404 ─────────────────────────
+@app.get("/")
+async def serve_index():
+    path = os.path.join(STATIC_DIR, "index.html")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="text/html")
+    return {"error": "index.html not found in the same directory as app.py"}
 
 # ── External API Endpoints (all free, no keys) ───────────────────────
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
@@ -81,13 +106,11 @@ LASTS = ["Kumar","Reddy","Gowda","Sharma","Patil","Naik","Rao","Hegde",
          "Shetty","Pai","Bhat","Kulkarni","Desai","Joshi","Menon","Nair",
          "Acharya","Deshpande","Mujawar","Siddiqui"]
 
-# Name normalization: OSM uses new names, our DB uses old
 NAME_MAP = {"Bengaluru Urban":"Bangalore Urban","Bengaluru Rural":"Bangalore Rural",
     "Mysuru":"Mysore","Kalaburagi":"Gulbarga","Ballari":"Bellary",
     "Shivamogga":"Shimoga","Tumakuru":"Tumkur","Chikkamagaluru":"Chikmagalur"}
 NAME_MAP_REV = {v:k for k,v in NAME_MAP.items()}
 
-# Weather cities
 WEATHER_CITIES = [
     {"name":"Bangalore","lat":12.97,"lng":77.59},
     {"name":"Mysore","lat":12.30,"lng":76.65},
@@ -168,8 +191,7 @@ def cache_get(key):
     conn = get_db(); c = conn.cursor()
     c.execute("SELECT data,fetched_at FROM api_cache WHERE key=?", (key,))
     row = c.fetchone(); conn.close()
-    if row:
-        return json.loads(row["data"]), row["fetched_at"]
+    if row: return json.loads(row["data"]), row["fetched_at"]
     return None, None
 
 def cache_set(key, data, ttl=86400):
@@ -178,26 +200,18 @@ def cache_set(key, data, ttl=86400):
               (key, json.dumps(data), time.time() + ttl))
     conn.commit(); conn.close()
 
-def http_get_json(url, headers=None):
-    """Raw HTTP GET returning parsed JSON — no 'requests' lib needed but we use it for cleanliness"""
-    import requests
-    r = requests.get(url, headers=headers or {}, timeout=120)
-    r.raise_for_status()
-    return r.json()
-
 def normalize_name(name):
     if not name: return ""
     for k,v in NAME_MAP.items():
         if k.lower() in name.lower(): return v
     return name.strip()
 
-# ── Overpass: District Boundaries ────────────────────────────────────
 def fetch_district_boundaries():
     cached, exp = cache_get("overpass_boundaries")
     if cached and exp > time.time():
         print("[OSM] District boundaries from cache")
         return cached
-    print("[OSM] Fetching district boundaries from Overpass API...")
+    print("[OSM] Fetching district boundaries from Overpass API (this may take 30-90s on first run)...")
     query = """
     [out:json][timeout:180];
     area["name"="Karnataka"]["admin_level"="4"]->.state;
@@ -205,19 +219,17 @@ def fetch_district_boundaries():
     out geom;
     """
     try:
-        data = http_get_json(OVERPASS_URL, {"Content-Type":"application/x-www-form-urlencoded"},
-                             ) if False else None  # use POST below
         import requests
         r = requests.post(OVERPASS_URL, data={"data": query}, timeout=180)
         r.raise_for_status()
         data = r.json()
         geojson = relations_to_geojson(data.get("elements", []))
-        cache_set("overpass_boundaries", geojson, ttl=86400*7)  # cache 7 days
+        cache_set("overpass_boundaries", geojson, ttl=86400*7)
         print(f"[OSM] Got {len(geojson['features'])} district boundaries")
         return geojson
     except Exception as e:
         print(f"[OSM] Boundary fetch failed: {e}")
-        if cached: return cached  # return stale cache
+        if cached: return cached
         return {"type":"FeatureCollection","features":[]}
 
 def relations_to_geojson(relations):
@@ -243,7 +255,6 @@ def relations_to_geojson(relations):
             "osm_id":rel.get("id",0)}, "geometry":geom})
     return {"type":"FeatureCollection","features":features}
 
-# ── Overpass: Police Stations ────────────────────────────────────────
 def fetch_police_stations():
     cached, exp = cache_get("overpass_stations")
     if cached and exp > time.time():
@@ -285,7 +296,6 @@ def fetch_police_stations():
         if cached: return cached
         return []
 
-# ── Nominatim: Geocoding Search ──────────────────────────────────────
 def nominatim_search(q):
     import requests
     params = {"q": q, "format": "json", "limit": 8,
@@ -298,7 +308,6 @@ def nominatim_search(q):
              "full":r["display_name"],"lat":float(r["lat"]),"lng":float(r["lon"]),
              "type":r.get("type","")} for r in r.json()]
 
-# ── Open-Meteo: Weather ──────────────────────────────────────────────
 def fetch_weather(lat, lng):
     cache_key = f"weather_{lat:.1f}_{lng:.1f}"
     cached, exp = cache_get(cache_key)
@@ -313,7 +322,7 @@ def fetch_weather(lat, lng):
                   "windspeed": data.get("windspeed"),
                   "weathercode": data.get("weathercode"),
                   "winddir": data.get("winddirection")}
-        cache_set(cache_key, result, ttl=1800)  # 30 min
+        cache_set(cache_key, result, ttl=1800)
         return result
     except: return cached if cached else None
 
@@ -335,7 +344,6 @@ def weather_icon(code):
     if code <= 82: return "fa-cloud-showers-heavy"
     return "fa-bolt"
 
-# ── Wikipedia: District Info ─────────────────────────────────────────
 def fetch_wiki_summary(title):
     cache_key = f"wiki_{title}"
     cached, exp = cache_get(cache_key)
@@ -431,7 +439,9 @@ def compute_predictions():
 
 # ── API Routes: Internal Data ────────────────────────────────────────
 @app.get("/api/health")
-def health(): return {"status":"operational","service":"KSP Crime Intelligence Platform v2.0","apis":{"overpass":"active","nominatim":"active","openmeteo":"active","wikipedia":"active"}}
+def health():
+    return {"status":"operational","service":"KSP Crime Intelligence Platform v2.0",
+            "apis":{"overpass":"active","nominatim":"active","openmeteo":"active","wikipedia":"active"}}
 
 @app.get("/api/dashboard/stats")
 def dashboard_stats():
@@ -454,7 +464,6 @@ def dashboard_stats():
                  WHEN severity<=8 THEN 'High' ELSE 'Critical' END as lvl,COUNT(*) as c
                  FROM incidents GROUP BY lvl""")
     sev=[{"level":r[0],"count":r[1]} for r in c.fetchall()]
-    # district crime counts for map coloring
     c.execute("SELECT district,COUNT(*) as c,AVG(severity) as s FROM incidents GROUP BY district")
     dist_crime=[{"district":r[0],"count":r[1],"avg_sev":round(r[2],1)} for r in c.fetchall()]
     conn.close()
@@ -573,10 +582,11 @@ def socio_economic():
 
 @app.get("/api/districts")
 def get_districts(): return list(DISTRICTS.keys())
+
 @app.get("/api/crime-types")
 def get_crime_types(): return CRIME_TYPES
 
-# ── API Routes: External Data (Overpass, Nominatim, Open-Meteo, Wiki) ─
+# ── API Routes: External Data ────────────────────────────────────────
 @app.get("/api/geo/boundaries")
 def geo_boundaries():
     """Fetch Karnataka district boundary polygons from OpenStreetMap Overpass API"""
@@ -621,7 +631,6 @@ def geo_weather(lat: float, lng: float):
 @app.get("/api/geo/district-wiki/{district_name}")
 def geo_district_wiki(district_name: str):
     """Fetch Wikipedia summary for a Karnataka district"""
-    # Try both old and new names
     names_to_try = [district_name]
     if district_name in NAME_MAP_REV:
         names_to_try.append(NAME_MAP_REV[district_name] + " district")
@@ -639,11 +648,6 @@ def boundaries_status():
     if cached and exp > time.time():
         return {"status":"cached","feature_count":len(cached.get("features",[]))}
     return {"status":"needs_fetch"}
-
-# ── Startup ──────────────────────────────────────────────────────────
-@app.on_event("startup")
-def startup():
-    init_db(); generate_data()
 
 if __name__ == "__main__":
     import uvicorn
