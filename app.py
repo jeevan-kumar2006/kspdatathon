@@ -1,11 +1,10 @@
 """
-KSP Crime Intelligence & Analytical Platform — Main Application
-Serves the frontend dashboard and all API endpoints.
+KSP Crime Intelligence Platform — Backend
+Serves a single index.html with all API routes.
 """
 
 from contextlib import asynccontextmanager
 from pathlib import Path
-
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -23,7 +22,7 @@ from services import (
     compute_hotspots, compute_anomalies, compute_predictions
 )
 
-STATIC_DIR = Path(__file__).parent / "static"
+STATIC_DIR = Path(__file__).parent
 
 
 @asynccontextmanager
@@ -36,7 +35,7 @@ async def lifespan(app: FastAPI):
     print("[KSP] Shutting down")
 
 
-app = FastAPI(title="KSP Crime Intelligence Platform", version="3.0.0",
+app = FastAPI(title="KSP Crime Intelligence Platform", version="4.0.0",
               lifespan=lifespan)
 
 app.add_middleware(
@@ -45,21 +44,19 @@ app.add_middleware(
     allow_methods=["*"], allow_headers=["*"]
 )
 
-# Serve static assets (CSS, JS)
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
 
 @app.get("/")
 async def serve_dashboard():
+    """Serve the single-page dashboard."""
     index_path = STATIC_DIR / "index.html"
     if index_path.exists():
         return FileResponse(index_path, media_type="text/html")
-    return {"error": "static/index.html not found"}
+    return {"error": "index.html not found next to app.py"}
 
 
 @app.get("/api/health")
 def health():
-    return {"status": "operational", "service": "KSP v3.0"}
+    return {"status": "operational", "service": "KSP v4.0"}
 
 
 @app.get("/api/dashboard/stats")
@@ -112,21 +109,17 @@ def map_incidents(district: Optional[str] = None,
 
 @app.get("/api/incidents/district/{district_name}")
 def district_incidents(district_name: str):
-    """All incidents for a specific district — used for drill-down."""
     conn = get_db(); c = conn.cursor()
     c.execute("""SELECT id, crime_type, station, latitude, longitude,
                         date, time, hour, severity, status
                  FROM incidents WHERE district=? ORDER BY date DESC""", (district_name,))
     data = [dict(r) for r in c.fetchall()]
-    # Station breakdown
     c.execute("""SELECT station, COUNT(*) as c, AVG(severity) as s
                  FROM incidents WHERE district=? GROUP BY station ORDER BY c DESC""", (district_name,))
     stations = [{"station": r[0], "count": r[1], "avg_sev": round(r[2], 1)} for r in c.fetchall()]
-    # Crime type breakdown
     c.execute("""SELECT crime_type, COUNT(*) as c FROM incidents
                  WHERE district=? GROUP BY crime_type ORDER BY c DESC""", (district_name,))
     types = [{"type": r[0], "count": r[1]} for r in c.fetchall()]
-    # Hourly breakdown
     c.execute("""SELECT hour, COUNT(*) as c FROM incidents
                  WHERE district=? GROUP BY hour ORDER BY hour""", (district_name,))
     hours = [{"hour": r[0], "count": r[1]} for r in c.fetchall()]
@@ -135,7 +128,8 @@ def district_incidents(district_name: str):
 
 
 @app.get("/api/hotspots")
-def hotspots(): return compute_hotspots()
+def hotspots():
+    return compute_hotspots()
 
 
 @app.get("/api/network")
@@ -174,10 +168,14 @@ def network_data(limit: int = 80):
 
 
 @app.get("/api/predictions")
-def predictions(): return compute_predictions()
+def predictions():
+    return compute_predictions()
+
 
 @app.get("/api/anomalies")
-def anomalies(): return compute_anomalies()
+def anomalies():
+    return compute_anomalies()
+
 
 @app.get("/api/trend-alerts")
 def trend_alerts():
@@ -194,15 +192,15 @@ def trend_alerts():
                  FROM incidents WHERE date>=?
                  GROUP BY district, crime_type
                  HAVING recent > previous*1.3 AND recent > 3
-                 ORDER BY (recent-previous) DESC LIMIT 8""",
-              (rs, ps, rs, ps))
+                 ORDER BY (recent-previous) DESC LIMIT 8""", (rs, ps, rs, ps))
     alerts = []
     for r in c.fetchall():
         pct = round(((r[2] - r[3]) / max(1, r[3])) * 100, 0)
         alerts.append({"district": r[0], "crime_type": r[1],
             "recent": r[2], "previous": r[3], "increase_pct": pct,
             "severity": "critical" if pct > 100 else ("high" if pct > 50 else "medium")})
-    conn.close(); return alerts
+    conn.close()
+    return alerts
 
 
 @app.get("/api/repeat-offenders")
@@ -226,7 +224,8 @@ def repeat_offenders(limit: int = 15):
             "crime_types": list(set(r[7].split(","))) if r[7] else [],
             "methods": list(set(r[8].split(","))) if r[8] else [],
             "districts": list(set(r[9].split(","))) if r[9] else []})
-    conn.close(); return result
+    conn.close()
+    return result
 
 
 @app.get("/api/socio-economic")
@@ -246,23 +245,32 @@ def socio_economic():
 
 
 @app.get("/api/districts")
-def get_districts(): return list(DISTRICTS.keys())
+def get_districts():
+    return list(DISTRICTS.keys())
+
 
 @app.get("/api/crime-types")
-def get_crime_types(): return CRIME_TYPES
+def get_crime_types():
+    return CRIME_TYPES
 
 
-# ── External API Proxies ───────────────────────────────────────────
 @app.get("/api/geo/boundaries")
-def geo_boundaries(): return fetch_district_boundaries()
+def geo_boundaries():
+    return fetch_district_boundaries()
+
 
 @app.get("/api/geo/stations")
-def geo_stations(): return fetch_police_stations()
+def geo_stations():
+    return fetch_police_stations()
+
 
 @app.get("/api/geo/search")
 def geo_search(q: str = Query(..., min_length=2)):
-    try: return nominatim_search(q)
-    except Exception as e: raise HTTPException(502, str(e))
+    try:
+        return nominatim_search(q)
+    except Exception as e:
+        raise HTTPException(502, str(e))
+
 
 @app.get("/api/geo/weather-cities")
 def geo_weather_cities():
@@ -276,14 +284,17 @@ def geo_weather_cities():
                 "icon": weather_icon(w["weathercode"])})
     return results
 
+
 @app.get("/api/geo/weather")
 def geo_weather(lat: float, lng: float):
     w = fetch_weather(lat, lng)
-    if not w: raise HTTPException(502, "Weather fetch failed")
+    if not w:
+        raise HTTPException(502, "Weather fetch failed")
     return {"temperature": w["temperature"], "windspeed": w["windspeed"],
             "weathercode": w["weathercode"],
             "description": weather_description(w["weathercode"]),
             "icon": weather_icon(w["weathercode"])}
+
 
 @app.get("/api/geo/district-wiki/{district_name}")
 def geo_district_wiki(district_name: str):
@@ -293,7 +304,8 @@ def geo_district_wiki(district_name: str):
     names.append(district_name + " district")
     for name in names:
         result = fetch_wiki_summary(name)
-        if result and result.get("extract"): return result
+        if result and result.get("extract"):
+            return result
     return {"title": district_name, "extract": "No data available.", "thumbnail": ""}
 
 
