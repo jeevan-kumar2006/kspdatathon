@@ -22,7 +22,8 @@ from services import (
     compute_hotspots, compute_anomalies, compute_predictions
 )
 
-STATIC_DIR = Path(__file__).parent
+# Point STATIC_DIR to the "static" folder
+STATIC_DIR = Path(__file__).parent / "static"
 
 
 @asynccontextmanager
@@ -38,6 +39,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="KSP Crime Intelligence Platform", version="4.0.0",
               lifespan=lifespan)
 
+# This allows your browser to load style.css and app.js
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_credentials=True,
@@ -47,11 +51,13 @@ app.add_middleware(
 
 @app.get("/")
 async def serve_dashboard():
-    """Serve the single-page dashboard."""
+    """Serve the single-page dashboard from the static folder."""
     index_path = STATIC_DIR / "index.html"
     if index_path.exists():
         return FileResponse(index_path, media_type="text/html")
-    return {"error": "index.html not found next to app.py"}
+    return {"error": f"index.html not found at {index_path}"}
+
+# ... [KEEP THE REST OF YOUR app.py EXACTLY THE SAME] ...
 
 
 @app.get("/api/health")
