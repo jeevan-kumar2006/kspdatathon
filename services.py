@@ -302,8 +302,8 @@ def compute_anomalies():
     """Isolation Forest to detect statistical anomalies in incidents."""
     conn = get_db()
     c = conn.cursor()
-    c.execute("""SELECT id, crime_type, district, station, date, time,
-                        hour, severity, modus_operandi FROM incidents""")
+    c.execute("""SELECT id, crime_type, district, station, latitude, longitude,
+                        date, time, hour, severity, modus_operandi FROM incidents""")
     data = [dict(r) for r in c.fetchall()]
     conn.close()
 
