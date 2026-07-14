@@ -979,3 +979,222 @@ document.addEventListener('DOMContentLoaded', ()=>{
         });
     });
 });
+/* ================================================================
+   PS2 additions: theme toggle, suspect CRUD, broken-button fixes
+   ================================================================ */
+(function () {
+  "use strict";
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+  /* ---------- 1. Theme toggle (persisted in localStorage) ---------- */
+  const themeBtn = $("#themeToggle");
+  const applyTheme = (t) => {
+    document.body.classList.toggle("theme-light", t === "light");
+    if (themeBtn) {
+      themeBtn.innerHTML = t === "light"
+        ? '<i class="fa-solid fa-sun"></i>'
+        : '<i class="fa-solid fa-moon"></i>';
+    }
+  };
+  applyTheme(localStorage.getItem("kspTheme") || "dark");
+  themeBtn?.addEventListener("click", () => {
+    const next = document.body.classList.contains("theme-light") ? "dark" : "light";
+    localStorage.setItem("kspTheme", next);
+    applyTheme(next);
+  });
+
+  /* ---------- 2. Suspect CRUD ---------- */
+  const modal = $("#suspectModal");
+  const openModal = () => { modal?.classList.remove("hidden"); loadSuspects(); };
+  const closeModal = () => modal?.classList.add("hidden");
+  $("#suspectFab")?.addEventListener("click", openModal);
+  $("#suspectClose")?.addEventListener("click", closeModal);
+  modal?.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+
+  async function loadSuspects(q = "") {
+    const list = $("#suspectList");
+    if (!list) return;
+    list.innerHTML = '<small style="color:var(--text-muted)">Loading...</small>';
+    try {
+      const url = q ? `/api/persons?q=${encodeURIComponent(q)}&limit=50`
+                    : `/api/persons?limit=50`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) {
+        list.innerHTML = '<small style="color:var(--text-muted)">No suspects found.</small>';
+        return;
+      }
+      list.innerHTML = data.map(p => `
+        <div class="suspect-item" data-id="${p.id}">
+          <div class="info">
+            <strong>
+              <span class="role-badge ${p.role}">${p.role}</span>
+              ${escapeHtml(p.name)} ${p.alias ? `<em style="color:var(--text-muted)">(${escapeHtml(p.alias)})</em>` : ""}
+            </strong>
+            <small>${p.age ? p.age + "y" : ""} ${p.gender || ""} • ${escapeHtml(p.last_known_location || "Unknown")} • ${p.incident_count} case(s)</small>
+          </div>
+          <button class="del-btn" data-del="${p.id}"><i class="fa-solid fa-trash"></i></button>
+        </div>`).join("");
+      $$('[data-del]', list).forEach(btn => btn.addEventListener("click", () => deleteSuspect(btn.dataset.del)));
+    } catch (err) {
+      console.error(err);
+      list.innerHTML = '<small style="color:var(--text-muted)">Failed to load.</small>';
+    }
+  }
+
+  async function deleteSuspect(id) {
+    if (!confirm("Delete this suspect? This removes all their associations.")) return;
+    try {
+      const res = await fetch(`/api/persons/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await res.text());
+      loadSuspects($("#sSearch")?.value.trim() || "");
+    } catch (err) {
+      alert("Delete failed: " + err.message);
+    }
+  }
+
+  $("#sSave")?.addEventListener("click", async () => {
+    const name = $("#sName").value.trim();
+    if (name.length < 2) { alert("Name is required (min 2 chars)"); return; }
+    const payload = {
+      name,
+      role: $("#sRole").value,
+      alias: $("#sAlias").value.trim() || null,
+      age: $("#sAge").value ? Number($("#sAge").value) : null,
+      gender: $("#sGender").value || null,
+      last_known_location: $("#sLocation").value.trim() || null,
+      notes: $("#sNotes").value.trim() || null,
+      incident_id: $("#sIncident").value ? Number($("#sIncident").value) : null,
+    };
+    try {
+      const res = await fetch("/api/persons", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || "Failed");
+      ["sName", "sAlias", "sAge", "sLocation", "sIncident", "sNotes"].forEach(id => { $("#" + id).value = ""; });
+      loadSuspects();
+    } catch (err) {
+      alert("Save failed: " + err.message);
+    }
+  });
+
+  let searchTimer;
+  $("#sSearch")?.addEventListener("input", (e) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => loadSuspects(e.target.value.trim()), 300);
+  });
+
+  function escapeHtml(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  /* ---------- 3. Fix broken buttons ---------- */
+
+  // Hamburger dropdown toggle
+  const hb = $("#hamburger"), hbd = $("#hamburgerDropdown");
+  if (hb && hbd) {
+    hb.addEventListener("click", (e) => { e.stopPropagation(); hbd.classList.toggle("open"); });
+    document.addEventListener("click", (e) => {
+      if (!hb.contains(e.target) && !hbd.contains(e.target)) hbd.classList.remove("open");
+    });
+  }
+
+  // Advanced Visualization -> scroll to network lens
+  $("#btnAdvViz")?.addEventListener("click", () => {
+    hbd?.classList.remove("open");
+    document.getElementById("networkLens")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  // Reset Time Filter
+  $("#btnResetTime")?.addEventListener("click", () => {
+    hbd?.classList.remove("open");
+    const slider = $("#hourSlider"), label = $("#hourLabel");
+    if (slider) { slider.value = -1; slider.dispatchEvent(new Event("input", { bubbles: true })); }
+    if (label) label.textContent = "All Hours";
+    $$(".time-preset").forEach(b => b.classList.toggle("active", b.dataset.hour === "-1"));
+  });
+
+  // Time preset chips
+  $$(".time-preset").forEach(btn => {
+    btn.addEventListener("click", () => {
+      $$(".time-preset").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const h = btn.dataset.hour;
+      const slider = $("#hourSlider"), label = $("#hourLabel");
+      if (slider) { slider.value = h; slider.dispatchEvent(new Event("input", { bubbles: true })); }
+      if (label) label.textContent = h === "-1" ? "All Hours" : (String(h).padStart(2, "0") + ":00");
+    });
+  });
+
+  // Sync / Refresh button (soft reload of data)
+  $("#btnRefresh")?.addEventListener("click", () => {
+    const btn = $("#btnRefresh");
+    btn.classList.add("spinning");
+    // Try to trigger any existing refresh function used by the app
+    if (typeof window.loadDashboard === "function") window.loadDashboard();
+    if (typeof window.loadStats === "function") window.loadStats();
+    if (typeof window.refreshAll === "function") window.refreshAll();
+    setTimeout(() => { btn.classList.remove("spinning"); }, 900);
+  });
+
+  // Alert bell -> scroll to anomalies
+  $(".alert-button")?.addEventListener("click", () => {
+    document.getElementById("anomalyLens")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  // Quick range chips (24h / 7d / 30d)
+  $$(".quick-range button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      $$(".quick-range button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+  });
+
+  // Saved-view chips (bookmark them, no-op filter for now)
+  $$(".saved-view button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      $$(".saved-view button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      // hook: could apply preset filters here
+    });
+  });
+
+  // Sidebar view buttons -> scroll to their section
+  $$(".sidebar-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      $$(".sidebar-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const sec = btn.dataset.section;
+      const map = { overview: "sec-overview", map: "sec-map", network: "networkLens",
+                    predict: "sec-predict", offenders: "sec-offenders" };
+      const el = document.getElementById(map[sec] || sec);
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+
+  // Drawer tab anchors — smooth scroll
+  $$(".drawer-tabs a").forEach(a => {
+    a.addEventListener("click", (e) => {
+      const href = a.getAttribute("href");
+      if (href?.startsWith("#")) {
+        e.preventDefault();
+        document.querySelector(href)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  });
+
+  // Layer toggles (visual feedback + custom event for map layers)
+  $$(".layer-toggle input[type=checkbox]").forEach(cb => {
+    cb.addEventListener("change", () => {
+      cb.closest(".layer-toggle")?.classList.toggle("off", !cb.checked);
+      document.dispatchEvent(new CustomEvent("kspLayerToggle", {
+        detail: { label: cb.closest(".layer-toggle")?.textContent.trim(), on: cb.checked }
+      }));
+    });
+  });
+})();
+
