@@ -203,5 +203,48 @@ tailwind.config={theme:{extend:{colors:{bg:{DEFAULT:'#0B0E14',card:'#12161F'},ac
 </div>
 <div id="toast" class="toast" role="alert" aria-live="polite"></div>
 <script src="/static/app.js"></script>
+  <!-- ============ Theme Toggle Button ============ -->
+<button id="themeToggle" class="theme-toggle-btn" title="Toggle theme" aria-label="Toggle theme">
+  <i class="fa-solid fa-moon"></i>
+</button>
+
+<!-- ============ Suspect Manager FAB ============ -->
+<button id="suspectFab" class="suspect-fab" title="Manage suspects" aria-label="Manage suspects">
+  <i class="fa-solid fa-user-plus"></i>
+</button>
+
+<!-- ============ Suspect Modal ============ -->
+<div id="suspectModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3><i class="fa-solid fa-user-shield"></i> Suspect Manager</h3>
+      <button id="suspectClose" class="modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="suspect-form">
+        <input id="sName" type="text" placeholder="Full name *" maxlength="80">
+        <input id="sAlias" type="text" placeholder="Alias (optional)" maxlength="80">
+        <div class="row2">
+          <input id="sAge" type="number" placeholder="Age" min="1" max="120">
+          <select id="sGender"><option value="">Gender</option><option>M</option><option>F</option><option>Other</option></select>
+        </div>
+        <select id="sRole">
+          <option value="suspect">Suspect</option>
+          <option value="accused">Accused</option>
+          <option value="victim">Victim</option>
+          <option value="witness">Witness</option>
+        </select>
+        <input id="sLocation" type="text" placeholder="Last known location" maxlength="160">
+        <input id="sIncident" type="number" placeholder="Link to incident ID (optional)" min="1">
+        <textarea id="sNotes" placeholder="Notes / MO / description" maxlength="500" rows="2"></textarea>
+        <button id="sSave" class="btn-primary"><i class="fa-solid fa-plus"></i> Add Suspect</button>
+      </div>
+      <div class="suspect-search">
+        <input id="sSearch" type="text" placeholder="Search suspects by name / alias / location...">
+      </div>
+      <div id="suspectList" class="suspect-list"></div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
