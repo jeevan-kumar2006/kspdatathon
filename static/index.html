@@ -9,28 +9,18 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
-tailwind.config={theme:{extend:{colors:{bg:{DEFAULT:'#050505',card:'#0E0E0E'},accent:{DEFAULT:'#FF6B00',dim:'rgba(255,107,0,0.15)',glow:'rgba(255,107,0,0.4)'},silver:'#A0A0A0',danger:'#FF2D2D',success:'#00E676',warning:'#FFD600'},fontFamily:{display:['"Bebas Neue"','sans-serif'],body:['"Barlow Condensed"','sans-serif']}}}}
+tailwind.config={theme:{extend:{colors:{bg:{DEFAULT:'#0B0E14',card:'#12161F'},accent:{DEFAULT:'#4C8DFF',dim:'rgba(76,141,255,0.14)',glow:'rgba(76,141,255,0.36)'},silver:'#8B93A3',danger:'#FF5D5D',success:'#3DDC97',warning:'#FFB84D'},fontFamily:{display:['IBM Plex Sans','sans-serif'],body:['IBM Plex Sans','sans-serif'],mono:['IBM Plex Mono','monospace']}}}}
 </script>
-<!-- LINK TO EXTERNAL CSS -->
 <link rel="stylesheet" href="/static/style.css">
 </head>
-<body class="flex min-h-screen">
-<div id="fallbackBadge" class="fallback-badge"><i class="fa-solid fa-database mr-1"></i>FALLBACK MODE</div>
-<aside class="fixed left-0 top-0 bottom-0 w-14 bg-bg-card border-r border-[#1a1a1a] flex flex-col items-center py-3 z-50" role="navigation" aria-label="Main navigation">
-  <div class="w-9 h-9 rounded flex items-center justify-center bg-accent-dim mb-6"><i class="fa-solid fa-shield-halved text-accent text-sm"></i></div>
-  <nav class="flex flex-col gap-1 flex-1">
-    <button class="sidebar-btn active w-10 h-10 flex items-center justify-center rounded text-xs" data-section="overview" title="Overview"><i class="fa-solid fa-grid-2"></i></button>
-    <button class="sidebar-btn w-10 h-10 flex items-center justify-center rounded text-xs text-silver" data-section="map" title="Map"><i class="fa-solid fa-map-location-dot"></i></button>
-    <button class="sidebar-btn w-10 h-10 flex items-center justify-center rounded text-xs text-silver" data-section="network" title="Network"><i class="fa-solid fa-diagram-project"></i></button>
-    <button class="sidebar-btn w-10 h-10 flex items-center justify-center rounded text-xs text-silver" data-section="predict" title="Predictions"><i class="fa-solid fa-chart-line"></i></button>
-    <button class="sidebar-btn w-10 h-10 flex items-center justify-center rounded text-xs text-silver" data-section="offenders" title="Offenders"><i class="fa-solid fa-user-secret"></i></button>
-  </nav>
-</aside>
-<main class="ml-14 flex-1 min-h-screen">
-  <header class="sticky top-0 z-40 bg-[#050505ee] backdrop-blur border-b border-[#1a1a1a] px-4 py-2 flex items-center gap-3 scan-line">
+<body>
+<div id="fallbackBadge" class="fallback-badge"><i class="fa-solid fa-database mr-1"></i>Fallback data</div>
+
+<header class="topbar scan-line">
+  <div class="topbar-left">
     <div class="relative shrink-0">
       <div id="hamburger" class="hamburger" role="button" tabindex="0" aria-label="Menu"><span></span><span></span><span></span></div>
       <div id="hamburgerDropdown" class="hamburger-dropdown">
@@ -39,123 +29,179 @@ tailwind.config={theme:{extend:{colors:{bg:{DEFAULT:'#050505',card:'#0E0E0E'},ac
         <button id="btnResetTime"><i class="fa-solid fa-clock"></i> Reset Time Filter</button>
       </div>
     </div>
-    <div class="flex items-center gap-2.5 mr-3 shrink-0">
-      <i class="fa-solid fa-shield-halved text-accent text-lg"></i>
-      <div>
-        <h1 class="font-display text-xl leading-none tracking-wider text-white">CRIME INTELLIGENCE PLATFORM</h1>
-        <p class="text-[10px] text-silver tracking-widest uppercase">Karnataka State Police — SCRB</p>
-      </div>
+    <div class="brand-mark"><i class="fa-solid fa-shield-halved"></i></div>
+    <div>
+      <h1>KSP Crime Intelligence</h1>
+      <p>Karnataka State Police - SCRB</p>
     </div>
-    <div class="relative w-48 shrink-0">
-      <div class="flex items-center bg-[#0d0d0d] border border-[#222] rounded px-2.5 py-1.5 focus-within:border-accent transition">
-        <i class="fa-solid fa-magnifying-glass text-[#444] text-xs mr-1.5"></i>
-        <input id="searchInput" type="text" placeholder="Search (Nominatim)" class="bg-transparent text-xs text-white outline-none w-full placeholder-[#444]" autocomplete="off" aria-label="Search">
-      </div>
-      <div id="searchResults" class="search-results hidden"></div>
-    </div>
-    <select id="filterDistrict" class="bg-[#0d0d0d] border border-[#222] text-xs text-silver px-2 py-1.5 rounded focus:border-accent focus:outline-none" aria-label="District"><option value="">All Districts</option></select>
-    <select id="filterCrime" class="bg-[#0d0d0d] border border-[#222] text-xs text-silver px-2 py-1.5 rounded focus:border-accent focus:outline-none" aria-label="Crime"><option value="">All Crimes</option></select>
-    <div id="weatherBar" class="flex gap-1.5 ml-auto overflow-x-auto shrink-0"><span class="text-[10px] text-[#444] self-center mr-1"><i class="fa-solid fa-cloud-sun mr-1"></i>LIVE</span></div>
-    <button id="btnRefresh" class="shrink-0 bg-accent text-black font-semibold text-xs px-3 py-1.5 rounded hover:brightness-110 transition flex items-center gap-1.5"><i class="fa-solid fa-rotate"></i> SYNC</button>
-  </header>
-  <div id="timeSlider" class="time-slider-bar">
-    <label>SPATIOTEMPORAL</label>
-    <input type="range" id="hourSlider" min="-1" max="23" value="-1">
-    <span id="hourLabel" class="font-display text-lg text-accent min-w-[80px] text-center">All Hours</span>
-    <button class="btn-sm" data-hour="-1">All</button>
-    <button class="btn-sm" data-hour="0">00</button>
-    <button class="btn-sm" data-hour="6">06</button>
-    <button class="btn-sm" data-hour="12">12</button>
-    <button class="btn-sm" data-hour="18">18</button>
-    <button class="btn-sm" data-hour="21">21</button>
   </div>
-  <div class="bg-[#110000] border-b border-[#220000] overflow-hidden h-7 flex items-center">
-    <div class="flex items-center gap-1 px-2 bg-danger text-[10px] font-bold tracking-wider h-full shrink-0">ALERTS</div>
-    <div class="overflow-hidden flex-1"><div id="alertTicker" class="alert-ticker whitespace-nowrap text-xs text-[#ff6666]"><span class="mx-8">Connecting...</span></div></div>
+  <div class="command-search">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <input id="searchInput" type="text" placeholder="Search case, place, beat, or offender" autocomplete="off" aria-label="Search">
+    <span>AI</span>
+    <div id="searchResults" class="search-results hidden"></div>
   </div>
-  <section id="sec-overview" class="px-4 pt-3 pb-1 grid grid-cols-6 gap-2.5">
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3 card-enter" style="animation-delay:0ms"><p class="text-[10px] text-silver uppercase tracking-widest mb-1">Total Incidents</p><p class="stat-num text-3xl text-white" data-count="0">0</p><p class="text-[10px] text-accent mt-0.5"><i class="fa-solid fa-database mr-1"></i>Records</p></div>
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3 card-enter" style="animation-delay:60ms"><p class="text-[10px] text-silver uppercase tracking-widest mb-1">Under Investigation</p><p class="stat-num text-3xl text-warning" data-count="0">0</p><p class="text-[10px] text-silver mt-0.5"><i class="fa-solid fa-magnifying-glass mr-1"></i>Active</p></div>
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3 card-enter" style="animation-delay:120ms"><p class="text-[10px] text-silver uppercase tracking-widest mb-1">Chargesheet Filed</p><p class="stat-num text-3xl text-success" data-count="0">0</p><p class="text-[10px] text-silver mt-0.5"><i class="fa-solid fa-file-signature mr-1"></i>Filed</p></div>
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3 card-enter" style="animation-delay:180ms"><p class="text-[10px] text-silver uppercase tracking-widest mb-1">Districts</p><p class="stat-num text-3xl text-white" data-count="0">0</p><p class="text-[10px] text-silver mt-0.5"><i class="fa-solid fa-map mr-1"></i>Active</p></div>
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3 card-enter" style="animation-delay:240ms"><p class="text-[10px] text-silver uppercase tracking-widest mb-1">Stations</p><p class="stat-num text-3xl text-white" data-count="0">0</p><p class="text-[10px] text-silver mt-0.5"><i class="fa-solid fa-building mr-1"></i>Units</p></div>
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3 card-enter glow-breathe" style="animation-delay:300ms"><p class="text-[10px] text-silver uppercase tracking-widest mb-1">High-Risk</p><p class="stat-num text-3xl text-danger" data-count="0">0</p><p class="text-[10px] text-danger mt-0.5"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Elevated</p></div>
+  <div class="topbar-actions">
+    <div id="weatherBar" class="weather-strip"><span class="weather-label"><i class="fa-solid fa-cloud-sun"></i> Live</span></div>
+    <button class="alert-button" type="button" aria-label="Alerts"><i class="fa-solid fa-bell"></i><span>8</span></button>
+    <button id="btnRefresh" class="sync-button"><i class="fa-solid fa-rotate"></i> Sync</button>
+  </div>
+</header>
+
+<div id="timeSlider" class="time-slider-bar">
+  <label>Spatiotemporal</label>
+  <input type="range" id="hourSlider" min="-1" max="23" value="-1">
+  <span id="hourLabel" class="hour-readout">All Hours</span>
+  <button class="btn-sm time-preset" data-hour="-1">All</button>
+  <button class="btn-sm time-preset" data-hour="0">00</button>
+  <button class="btn-sm time-preset" data-hour="6">06</button>
+  <button class="btn-sm time-preset" data-hour="12">12</button>
+  <button class="btn-sm time-preset" data-hour="18">18</button>
+  <button class="btn-sm time-preset" data-hour="21">21</button>
+</div>
+
+<div class="alert-strip">
+  <div class="alert-label">Alerts</div>
+  <div class="alert-marquee"><div id="alertTicker" class="alert-ticker"><span>Connecting...</span></div></div>
+</div>
+
+<main class="ops-shell">
+  <aside class="left-rail" role="navigation" aria-label="Main navigation">
+    <section class="rail-group">
+      <p>View</p>
+      <button class="sidebar-btn active" data-section="overview" title="City"><i class="fa-solid fa-city"></i><span>City</span></button>
+      <button class="sidebar-btn" data-section="map" title="Map"><i class="fa-solid fa-map-location-dot"></i><span>District</span></button>
+      <button class="sidebar-btn" data-section="network" title="Network"><i class="fa-solid fa-diagram-project"></i><span>Network</span></button>
+      <button class="sidebar-btn" data-section="predict" title="Predictions"><i class="fa-solid fa-chart-line"></i><span>Risk</span></button>
+      <button class="sidebar-btn" data-section="offenders" title="Offenders"><i class="fa-solid fa-user-secret"></i><span>Cases</span></button>
+    </section>
+    <section class="rail-group">
+      <p>Layers</p>
+      <label class="layer-toggle"><span class="swatch heat"></span><span>Hotspot heat</span><input type="checkbox" checked></label>
+      <label class="layer-toggle"><span class="swatch repeat"></span><span>Repeat clusters</span><input type="checkbox" checked></label>
+      <label class="layer-toggle"><span class="swatch socio"></span><span>Socio-economic</span><input type="checkbox"></label>
+      <label class="layer-toggle"><span class="swatch risk"></span><span>Risk grid</span><input type="checkbox" checked></label>
+    </section>
+    <section class="rail-group">
+      <p>Filters</p>
+      <select id="filterDistrict" aria-label="District"><option value="">All Districts</option></select>
+      <select id="filterCrime" aria-label="Crime"><option value="">All Crimes</option></select>
+      <div class="quick-range"><button>24h</button><button class="active">7d</button><button>30d</button></div>
+    </section>
+    <section class="rail-group saved-view">
+      <p>Saved</p>
+      <button><i class="fa-solid fa-bookmark"></i> Night watch</button>
+      <button><i class="fa-solid fa-bookmark"></i> Property crime</button>
+    </section>
+  </aside>
+
+  <section id="sec-map" class="situation-map">
+    <div class="map-toolbar">
+      <div class="breadcrumb"><span>Ballari</span><i class="fa-solid fa-chevron-right"></i><span>City View</span></div>
+      <div><i class="fa-solid fa-satellite-dish"></i> Situation Map <span>OSM + Overpass</span></div>
+    </div>
+    <div id="map"></div>
+    <div id="boundaryLoader" class="boundary-loading" style="display:none"><div class="loader"></div>Loading boundaries...</div>
+    <div id="districtLegend" class="district-legend" style="display:none">
+      <p>Crime density</p>
+      <div><span class="swatch critical"></span><span>Critical</span></div>
+      <div><span class="swatch high"></span><span>High</span></div>
+      <div><span class="swatch medium"></span><span>Medium</span></div>
+      <div><span class="swatch low"></span><span>Low</span></div>
+    </div>
   </section>
-  <section id="sec-map" class="px-4 py-2 grid grid-cols-3 gap-2.5">
-    <div class="col-span-2 bg-bg-card border border-[#1a1a1a] rounded overflow-hidden relative" style="min-height:460px">
-      <div class="absolute top-2 left-3 z-[1000] bg-[rgba(10,10,10,.93)] border border-[#222] rounded px-2 py-1 text-[10px] text-silver uppercase tracking-wider flex items-center gap-2"><i class="fa-solid fa-satellite-dish text-accent"></i>Live Crime Map<span class="text-[#444]">|</span><span class="text-[#555]">OSM + Overpass</span></div>
-      <div id="map" style="width:100%;height:100%;min-height:460px"></div>
-      <div id="boundaryLoader" class="boundary-loading" style="display:none"><div class="loader" style="width:16px;height:16px;border-width:1.5px"></div>Loading boundaries from Overpass API...</div>
-      <div id="districtLegend" class="district-legend" style="display:none">
-        <div class="text-[10px] text-silver font-display tracking-wider mb-1">CRIME DENSITY</div>
-        <div><div class="swatch" style="background:rgba(255,45,45,0.5)"></div><span class="text-[#aaa]">Critical</span></div>
-        <div><div class="swatch" style="background:rgba(255,107,0,0.4)"></div><span class="text-[#aaa]">High</span></div>
-        <div><div class="swatch" style="background:rgba(255,214,0,0.3)"></div><span class="text-[#aaa]">Medium</span></div>
-        <div><div class="swatch" style="background:rgba(0,230,118,0.2)"></div><span class="text-[#aaa]">Low</span></div>
+
+  <aside class="right-panel">
+    <section id="sec-overview" class="kpi-stack">
+      <div class="panel-heading"><span>City-wide status</span><small>Updated from live feeds</small></div>
+      <div class="kpi-card"><p>Total Incidents</p><strong class="stat-num" data-count="0">0</strong><span><i class="fa-solid fa-database"></i> Records</span></div>
+      <div class="kpi-card warn"><p>Under Investigation</p><strong class="stat-num" data-count="0">0</strong><span><i class="fa-solid fa-magnifying-glass"></i> Active</span></div>
+      <div class="kpi-card ok"><p>Chargesheet Filed</p><strong class="stat-num" data-count="0">0</strong><span><i class="fa-solid fa-file-signature"></i> Filed</span></div>
+      <div class="mini-kpis">
+        <div><p>Districts</p><strong class="stat-num" data-count="0">0</strong></div>
+        <div><p>Stations</p><strong class="stat-num" data-count="0">0</strong></div>
+        <div><p>High Risk</p><strong class="stat-num" data-count="0">0</strong></div>
       </div>
+    </section>
+    <section class="intel-panel">
+      <div class="panel-heading"><span>Hotspots</span><small>KMeans clusters</small></div>
+      <div id="hotspotList" class="hotspot-list"></div>
+    </section>
+  </aside>
+
+  <section class="bottom-drawer">
+    <div class="drawer-handle"></div>
+    <nav class="drawer-tabs">
+      <a href="#trendsLens"><i class="fa-solid fa-chart-area"></i> Trends</a>
+      <a href="#anomalyLens"><i class="fa-solid fa-triangle-exclamation"></i> Anomalies</a>
+      <a href="#networkLens"><i class="fa-solid fa-diagram-project"></i> Network</a>
+      <a href="#caseLens"><i class="fa-solid fa-table"></i> Cases</a>
+    </nav>
+    <div class="drawer-content">
+      <section id="trendsLens" class="lens-card wide">
+        <h2><i class="fa-solid fa-chart-line"></i> Monthly Trend</h2>
+        <canvas id="chartTrend" height="170"></canvas>
+      </section>
+      <section class="lens-card">
+        <h2><i class="fa-solid fa-bars-staggered"></i> Crime Types</h2>
+        <canvas id="chartTypes" height="200"></canvas>
+      </section>
+      <section class="lens-card">
+        <h2><i class="fa-solid fa-clock"></i> Hourly Pattern</h2>
+        <canvas id="chartHourly" height="150"></canvas>
+      </section>
+      <section class="lens-card">
+        <h2><i class="fa-solid fa-gauge-high"></i> Severity</h2>
+        <canvas id="chartSeverity" height="150"></canvas>
+      </section>
+      <section id="networkLens" class="lens-card wide">
+        <div class="lens-title-row">
+          <h2 id="sec-network"><i class="fa-solid fa-diagram-project"></i> Network & Link Analysis</h2>
+          <div class="network-legend"><span><i class="suspect"></i>Suspect</span><span><i class="victim"></i>Victim</span><span><i class="witness"></i>Witness</span></div>
+        </div>
+        <div id="networkGraph"></div>
+      </section>
+      <section id="sec-predict" class="lens-card">
+        <h2><i class="fa-solid fa-brain"></i> Predictive Risk <span>AI</span></h2>
+        <div class="table-wrap"><table class="data-table"><thead><tr><th>District</th><th>Trend</th><th>Next</th><th>Risk</th><th>Change</th></tr></thead><tbody id="predTable"></tbody></table></div>
+      </section>
+      <section id="anomalyLens" class="lens-card">
+        <h2><i class="fa-solid fa-exclamation-circle"></i> Anomalies <span>AI</span></h2>
+        <div id="anomalyList" class="anomaly-list"></div>
+      </section>
+      <section id="sec-offenders" class="lens-card wide">
+        <h2><i class="fa-solid fa-user-secret"></i> Repeat Offenders - Modus Operandi</h2>
+        <div id="offenderCards" class="offender-cards"></div>
+      </section>
+      <section id="caseLens" class="lens-card wide">
+        <h2><i class="fa-solid fa-scale-balanced"></i> Socio-economic Correlation</h2>
+        <canvas id="chartSocio" height="200"></canvas>
+      </section>
     </div>
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3 flex flex-col">
-      <h2 class="font-display text-sm tracking-wider text-accent mb-2"><i class="fa-solid fa-fire mr-1.5"></i>HOTSPOTS <span class="text-[10px] text-silver font-body">(KMeans)</span></h2>
-      <div id="hotspotList" class="flex-1 overflow-y-auto space-y-1.5 text-xs"></div>
-    </div>
   </section>
-  <section class="px-4 py-2 grid grid-cols-3 gap-2.5">
-    <div class="col-span-2 bg-bg-card border border-[#1a1a1a] rounded p-3"><h2 class="font-display text-sm tracking-wider text-silver mb-2"><i class="fa-solid fa-chart-area text-accent mr-1.5"></i>MONTHLY TREND</h2><canvas id="chartTrend" height="170"></canvas></div>
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3"><h2 class="font-display text-sm tracking-wider text-silver mb-2"><i class="fa-solid fa-chart-pie text-accent mr-1.5"></i>CRIME TYPES</h2><canvas id="chartTypes" height="200"></canvas></div>
-  </section>
-  <section class="px-4 py-2 grid grid-cols-2 gap-2.5">
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3"><h2 class="font-display text-sm tracking-wider text-silver mb-2"><i class="fa-solid fa-clock text-accent mr-1.5"></i>HOURLY</h2><canvas id="chartHourly" height="150"></canvas></div>
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3"><h2 class="font-display text-sm tracking-wider text-silver mb-2"><i class="fa-solid fa-gauge-high text-accent mr-1.5"></i>SEVERITY</h2><canvas id="chartSeverity" height="150"></canvas></div>
-  </section>
-  <section id="sec-network" class="px-4 py-2">
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="font-display text-sm tracking-wider text-accent"><i class="fa-solid fa-diagram-project mr-1.5"></i>CRIMINOLOGICAL NETWORK</h2>
-        <div class="flex gap-3 text-[10px]"><span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[#FF6B00] inline-block"></span>Suspect</span><span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[#A0A0A0] inline-block"></span>Victim</span><span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-[#555] inline-block"></span>Witness</span></div>
-      </div>
-      <div id="networkGraph" style="height:400px"></div>
-    </div>
-  </section>
-  <section id="sec-predict" class="px-4 py-2 grid grid-cols-2 gap-2.5">
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3"><h2 class="font-display text-sm tracking-wider text-accent mb-2"><i class="fa-solid fa-brain mr-1.5"></i>PREDICTIVE RISK <span class="text-[10px] text-silver font-body">(LinReg)</span></h2><div class="overflow-y-auto" style="max-height:340px"><table class="data-table w-full"><thead><tr><th>District</th><th>Trend</th><th>Next</th><th>Risk</th><th>Change</th></tr></thead><tbody id="predTable"></tbody></table></div></div>
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3"><h2 class="font-display text-sm tracking-wider text-danger mb-2"><i class="fa-solid fa-exclamation-circle mr-1.5"></i>ANOMALIES <span class="text-[10px] text-silver font-body">(IsolationForest)</span></h2><div id="anomalyList" class="overflow-y-auto space-y-1.5" style="max-height:340px"></div></div>
-  </section>
-  <section id="sec-offenders" class="px-4 py-2">
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3">
-      <h2 class="font-display text-sm tracking-wider text-accent mb-3"><i class="fa-solid fa-user-secret mr-1.5"></i>REPEAT OFFENDERS — MODUS OPERANDI</h2>
-      <div id="offenderCards" class="flex gap-2.5 overflow-x-auto pb-2"></div>
-    </div>
-  </section>
-  <section class="px-4 py-2 pb-4">
-    <div class="bg-bg-card border border-[#1a1a1a] rounded p-3"><h2 class="font-display text-sm tracking-wider text-accent mb-2"><i class="fa-solid fa-scale-balanced mr-1.5"></i>SOCIO-ECONOMIC CORRELATION</h2><canvas id="chartSocio" height="200"></canvas></div>
-  </section>
-  <footer class="border-t border-[#1a1a1a] px-4 py-3 flex items-center justify-between text-[10px] text-[#444] tracking-wider uppercase">
-    <span>Karnataka State Police — SCRB</span>
-    <span>Overpass + Nominatim + Open-Meteo + Wikipedia | KMeans + IsolationForest + LinReg</span>
-  </footer>
 </main>
+
 <div id="advPanel" class="adv-panel">
   <div class="adv-panel-header">
-    <h2><i class="fa-solid fa-crosshairs mr-1.5"></i>ADVANCED VISUALIZATION</h2>
-    <button id="closeAdvPanel" style="background:none;border:none;color:#666;cursor:pointer;font-size:16px"><i class="fa-solid fa-xmark"></i></button>
+    <h2><i class="fa-solid fa-crosshairs"></i> Advanced Visualization</h2>
+    <button id="closeAdvPanel" type="button" aria-label="Close advanced visualization"><i class="fa-solid fa-xmark"></i></button>
   </div>
-  <div class="flex-1 overflow-y-auto p-3">
+  <div class="adv-panel-body">
     <div id="drillDistrictList"></div>
     <div id="drillState" style="display:none">
-      <button id="btnResetDrill" class="flex items-center gap-1 bg-accent-dim border border-accent/30 text-accent px-3 py-1.5 rounded text-[11px] cursor-pointer mb-3"><i class="fa-solid fa-arrow-left"></i> Back to All Districts</button>
-      <h3 id="drillDistrictName" class="font-display text-base tracking-wider text-accent mb-2"></h3>
+      <button id="btnResetDrill" class="drill-back-btn"><i class="fa-solid fa-arrow-left"></i> Back to All Districts</button>
+      <h3 id="drillDistrictName"></h3>
       <div id="drillStats"></div>
-      <h3 class="text-[10px] text-[#555] uppercase tracking-wider mb-1 mt-3">By Station</h3>
+      <h3>By Station</h3>
       <div id="drillStations"></div>
-      <h3 class="text-[10px] text-[#555] uppercase tracking-wider mb-1 mt-3">Crime Breakdown</h3>
+      <h3>Crime Breakdown</h3>
       <canvas id="drillCrimeChart" height="140"></canvas>
-      <h3 class="text-[10px] text-[#555] uppercase tracking-wider mb-1 mt-3">Hourly Pattern</h3>
+      <h3>Hourly Pattern</h3>
       <canvas id="drillTimeChart" height="120"></canvas>
     </div>
   </div>
 </div>
 <div id="toast" class="toast" role="alert" aria-live="polite"></div>
-<!-- LINK TO EXTERNAL JS -->
 <script src="/static/app.js"></script>
 </body>
 </html>

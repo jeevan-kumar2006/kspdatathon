@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from typing import Optional
+from pydantic import BaseModel, Field, field_validator
 
 from config import (
     DISTRICTS, CRIME_TYPES, WEATHER_CITIES, NAME_MAP_REV
@@ -24,6 +25,42 @@ from services import (
 
 # Point STATIC_DIR to the "static" folder
 STATIC_DIR = Path(__file__).parent / "static"
+
+
+class IncidentIn(BaseModel):
+    crime_type: str
+    district: str
+    station: str
+    latitude: float = Field(..., ge=11.0, le=19.0)
+    longitude: float = Field(..., ge=73.0, le=79.5)
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+    hour: int = Field(..., ge=0, le=23)
+    status: str
+    severity: int = Field(..., ge=1, le=10)
+    modus_operandi: str = Field(..., min_length=2, max_length=160)
+
+    @field_validator("crime_type")
+    @classmethod
+    def valid_crime_type(cls, value):
+        if value not in CRIME_TYPES:
+            raise ValueError("Unsupported crime type")
+        return value
+
+    @field_validator("district")
+    @classmethod
+    def valid_district(cls, value):
+        if value not in DISTRICTS:
+            raise ValueError("Unsupported district")
+        return value
+
+    @field_validator("station", "status")
+    @classmethod
+    def non_empty(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("Required field cannot be empty")
+        return value
 
 
 @asynccontextmanager
@@ -99,7 +136,12 @@ def dashboard_stats():
 
 @app.get("/api/incidents/map")
 def map_incidents(district: Optional[str] = None,
-                  crime_type: Optional[str] = None, limit: int = 2000):
+                  crime_type: Optional[str] = None,
+                  limit: int = Query(2000, ge=1, le=5000)):
+    if district and district not in DISTRICTS:
+        raise HTTPException(400, "Invalid district")
+    if crime_type and crime_type not in CRIME_TYPES:
+        raise HTTPException(400, "Invalid crime type")
     conn = get_db(); c = conn.cursor()
     q = """SELECT id, crime_type, district, station, latitude, longitude,
                   date, time, hour, severity, status
@@ -113,8 +155,66 @@ def map_incidents(district: Optional[str] = None,
     return data
 
 
+@app.get("/api/incidents/{incident_id}")
+def get_incident(incident_id: int):
+    conn = get_db(); c = conn.cursor()
+    c.execute("SELECT * FROM incidents WHERE id=?", (incident_id,))
+    row = c.fetchone(); conn.close()
+    if not row:
+        raise HTTPException(404, "Incident not found")
+    return dict(row)
+
+
+@app.post("/api/incidents", status_code=201)
+def create_incident(payload: IncidentIn):
+    conn = get_db(); c = conn.cursor()
+    c.execute("""INSERT INTO incidents
+        (crime_type, district, station, latitude, longitude, date, time,
+         hour, status, severity, modus_operandi)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+        (payload.crime_type, payload.district, payload.station,
+         payload.latitude, payload.longitude, payload.date, payload.time,
+         payload.hour, payload.status, payload.severity, payload.modus_operandi))
+    conn.commit()
+    incident_id = c.lastrowid
+    conn.close()
+    return {"id": incident_id, **payload.model_dump()}
+
+
+@app.put("/api/incidents/{incident_id}")
+def update_incident(incident_id: int, payload: IncidentIn):
+    conn = get_db(); c = conn.cursor()
+    c.execute("SELECT id FROM incidents WHERE id=?", (incident_id,))
+    if not c.fetchone():
+        conn.close()
+        raise HTTPException(404, "Incident not found")
+    c.execute("""UPDATE incidents SET crime_type=?, district=?, station=?,
+        latitude=?, longitude=?, date=?, time=?, hour=?, status=?,
+        severity=?, modus_operandi=? WHERE id=?""",
+        (payload.crime_type, payload.district, payload.station,
+         payload.latitude, payload.longitude, payload.date, payload.time,
+         payload.hour, payload.status, payload.severity,
+         payload.modus_operandi, incident_id))
+    conn.commit(); conn.close()
+    return {"id": incident_id, **payload.model_dump()}
+
+
+@app.delete("/api/incidents/{incident_id}")
+def delete_incident(incident_id: int):
+    conn = get_db(); c = conn.cursor()
+    c.execute("DELETE FROM incident_persons WHERE incident_id=?", (incident_id,))
+    c.execute("DELETE FROM incidents WHERE id=?", (incident_id,))
+    changed = c.rowcount
+    conn.commit(); conn.close()
+    if not changed:
+        raise HTTPException(404, "Incident not found")
+    return {"deleted": True, "id": incident_id}
+
+
 @app.get("/api/incidents/district/{district_name}")
 def district_incidents(district_name: str):
+    if district_name not in DISTRICTS:
+        raise HTTPException(404, "District not found")
     conn = get_db(); c = conn.cursor()
     c.execute("""SELECT id, crime_type, station, latitude, longitude,
                         date, time, hour, severity, status
@@ -129,8 +229,11 @@ def district_incidents(district_name: str):
     c.execute("""SELECT hour, COUNT(*) as c FROM incidents
                  WHERE district=? GROUP BY hour ORDER BY hour""", (district_name,))
     hours = [{"hour": r[0], "count": r[1]} for r in c.fetchall()]
+    total = len(data)
+    avg_sev = round(sum(i["severity"] for i in data) / total, 1) if total else 0
     conn.close()
-    return {"incidents": data, "stations": stations, "types": types, "hours": hours}
+    return {"total": total, "avg_sev": avg_sev, "incidents": data,
+            "stations": stations, "types": types, "hours": hours}
 
 
 @app.get("/api/hotspots")
@@ -139,7 +242,7 @@ def hotspots():
 
 
 @app.get("/api/network")
-def network_data(limit: int = 80):
+def network_data(limit: int = Query(80, ge=1, le=250)):
     conn = get_db(); c = conn.cursor()
     c.execute("""SELECT p.id, p.name, p.role, p.alias, COUNT(ip.incident_id) as ic
                  FROM persons p JOIN incident_persons ip ON p.id=ip.person_id
@@ -210,7 +313,7 @@ def trend_alerts():
 
 
 @app.get("/api/repeat-offenders")
-def repeat_offenders(limit: int = 15):
+def repeat_offenders(limit: int = Query(15, ge=1, le=100)):
     conn = get_db(); c = conn.cursor()
     c.execute("""SELECT p.id, p.name, p.alias, p.age, p.gender,
                         p.last_known_location, COUNT(ip.incident_id) as ic,
