@@ -23,7 +23,6 @@ from services import (
     compute_hotspots, compute_anomalies, compute_predictions
 )
 
-# Point STATIC_DIR to the "static" folder
 STATIC_DIR = Path(__file__).parent / "static"
 
 
@@ -42,25 +41,34 @@ class IncidentIn(BaseModel):
 
     @field_validator("crime_type")
     @classmethod
-    def valid_crime_type(cls, value):
-        if value not in CRIME_TYPES:
-            raise ValueError("Unsupported crime type")
-        return value
+    def valid_crime_type(cls, v):
+        if v not in CRIME_TYPES: raise ValueError("Unsupported crime type")
+        return v
 
     @field_validator("district")
     @classmethod
-    def valid_district(cls, value):
-        if value not in DISTRICTS:
-            raise ValueError("Unsupported district")
-        return value
+    def valid_district(cls, v):
+        if v not in DISTRICTS: raise ValueError("Unsupported district")
+        return v
 
     @field_validator("station", "status")
     @classmethod
-    def non_empty(cls, value):
-        value = value.strip()
-        if not value:
-            raise ValueError("Required field cannot be empty")
-        return value
+    def non_empty(cls, v):
+        v = v.strip()
+        if not v: raise ValueError("Required field cannot be empty")
+        return v
+
+
+# ---------- NEW: Suspect (Person) CRUD models ----------
+class PersonIn(BaseModel):
+    name: str = Field(..., min_length=2, max_length=80)
+    role: str = Field("suspect", pattern=r"^(suspect|victim|witness|accused)$")
+    alias: Optional[str] = Field(None, max_length=80)
+    age: Optional[int] = Field(None, ge=1, le=120)
+    gender: Optional[str] = Field(None, pattern=r"^(M|F|Other)$")
+    last_known_location: Optional[str] = Field(None, max_length=160)
+    notes: Optional[str] = Field(None, max_length=500)
+    incident_id: Optional[int] = None  # optional link to an incident
 
 
 @asynccontextmanager
@@ -73,33 +81,23 @@ async def lifespan(app: FastAPI):
     print("[KSP] Shutting down")
 
 
-app = FastAPI(title="KSP Crime Intelligence Platform", version="4.0.0",
-              lifespan=lifespan)
-
-# This allows your browser to load style.css and app.js
+app = FastAPI(title="KSP Crime Intelligence Platform", version="4.1.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True,
-    allow_methods=["*"], allow_headers=["*"]
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True,
+                   allow_methods=["*"], allow_headers=["*"])
 
 
 @app.get("/")
 async def serve_dashboard():
-    """Serve the single-page dashboard from the static folder."""
     index_path = STATIC_DIR / "index.html"
     if index_path.exists():
         return FileResponse(index_path, media_type="text/html")
     return {"error": f"index.html not found at {index_path}"}
 
-# ... [KEEP THE REST OF YOUR app.py EXACTLY THE SAME] ...
-
 
 @app.get("/api/health")
 def health():
-    return {"status": "operational", "service": "KSP v4.0"}
+    return {"status": "operational", "service": "KSP v4.1"}
 
 
 @app.get("/api/dashboard/stats")
@@ -135,13 +133,10 @@ def dashboard_stats():
 
 
 @app.get("/api/incidents/map")
-def map_incidents(district: Optional[str] = None,
-                  crime_type: Optional[str] = None,
+def map_incidents(district: Optional[str] = None, crime_type: Optional[str] = None,
                   limit: int = Query(2000, ge=1, le=5000)):
-    if district and district not in DISTRICTS:
-        raise HTTPException(400, "Invalid district")
-    if crime_type and crime_type not in CRIME_TYPES:
-        raise HTTPException(400, "Invalid crime type")
+    if district and district not in DISTRICTS: raise HTTPException(400, "Invalid district")
+    if crime_type and crime_type not in CRIME_TYPES: raise HTTPException(400, "Invalid crime type")
     conn = get_db(); c = conn.cursor()
     q = """SELECT id, crime_type, district, station, latitude, longitude,
                   date, time, hour, severity, status
@@ -160,8 +155,7 @@ def get_incident(incident_id: int):
     conn = get_db(); c = conn.cursor()
     c.execute("SELECT * FROM incidents WHERE id=?", (incident_id,))
     row = c.fetchone(); conn.close()
-    if not row:
-        raise HTTPException(404, "Incident not found")
+    if not row: raise HTTPException(404, "Incident not found")
     return dict(row)
 
 
@@ -175,10 +169,8 @@ def create_incident(payload: IncidentIn):
         (payload.crime_type, payload.district, payload.station,
          payload.latitude, payload.longitude, payload.date, payload.time,
          payload.hour, payload.status, payload.severity, payload.modus_operandi))
-    conn.commit()
-    incident_id = c.lastrowid
-    conn.close()
-    return {"id": incident_id, **payload.model_dump()}
+    conn.commit(); iid = c.lastrowid; conn.close()
+    return {"id": iid, **payload.model_dump()}
 
 
 @app.put("/api/incidents/{incident_id}")
@@ -186,8 +178,7 @@ def update_incident(incident_id: int, payload: IncidentIn):
     conn = get_db(); c = conn.cursor()
     c.execute("SELECT id FROM incidents WHERE id=?", (incident_id,))
     if not c.fetchone():
-        conn.close()
-        raise HTTPException(404, "Incident not found")
+        conn.close(); raise HTTPException(404, "Incident not found")
     c.execute("""UPDATE incidents SET crime_type=?, district=?, station=?,
         latitude=?, longitude=?, date=?, time=?, hour=?, status=?,
         severity=?, modus_operandi=? WHERE id=?""",
@@ -206,15 +197,13 @@ def delete_incident(incident_id: int):
     c.execute("DELETE FROM incidents WHERE id=?", (incident_id,))
     changed = c.rowcount
     conn.commit(); conn.close()
-    if not changed:
-        raise HTTPException(404, "Incident not found")
+    if not changed: raise HTTPException(404, "Incident not found")
     return {"deleted": True, "id": incident_id}
 
 
 @app.get("/api/incidents/district/{district_name}")
 def district_incidents(district_name: str):
-    if district_name not in DISTRICTS:
-        raise HTTPException(404, "District not found")
+    if district_name not in DISTRICTS: raise HTTPException(404, "District not found")
     conn = get_db(); c = conn.cursor()
     c.execute("""SELECT id, crime_type, station, latitude, longitude,
                         date, time, hour, severity, status
@@ -251,8 +240,8 @@ def network_data(limit: int = Query(80, ge=1, le=250)):
     for r in c.fetchall():
         nid = str(r[0])
         nodes.append({"id": nid, "label": r[1][:18],
-                       "title": f"{r[1]} ({r[2]}) — {r[4]} cases",
-                       "group": r[2], "value": min(25, r[4] * 3)})
+                      "title": f"{r[1]} ({r[2]}) — {r[4]} cases",
+                      "group": r[2], "value": min(25, r[4] * 3)})
         nm[r[0]] = nid
     edges = []
     c.execute("""SELECT person_id_1, person_id_2, association_type, weight
@@ -260,8 +249,7 @@ def network_data(limit: int = Query(80, ge=1, le=250)):
     for r in c.fetchall():
         if r[0] in nm and r[1] in nm:
             edges.append({"from": nm[r[0]], "to": nm[r[1]],
-                          "label": r[2], "title": f"{r[2]} ({r[3]})",
-                          "value": r[3] * 10})
+                          "label": r[2], "title": f"{r[2]} ({r[3]})", "value": r[3] * 10})
     c.execute("""SELECT ip1.person_id, ip2.person_id, i.crime_type
                  FROM incident_persons ip1
                  JOIN incident_persons ip2 ON ip1.incident_id=ip2.incident_id
@@ -277,13 +265,11 @@ def network_data(limit: int = Query(80, ge=1, le=250)):
 
 
 @app.get("/api/predictions")
-def predictions():
-    return compute_predictions()
+def predictions(): return compute_predictions()
 
 
 @app.get("/api/anomalies")
-def anomalies():
-    return compute_anomalies()
+def anomalies(): return compute_anomalies()
 
 
 @app.get("/api/trend-alerts")
@@ -337,6 +323,107 @@ def repeat_offenders(limit: int = Query(15, ge=1, le=100)):
     return result
 
 
+# ==================== NEW: Suspect / Person CRUD ====================
+@app.get("/api/persons")
+def list_persons(role: Optional[str] = None, q: Optional[str] = None,
+                 limit: int = Query(100, ge=1, le=500)):
+    conn = get_db(); c = conn.cursor()
+    query = """SELECT p.id, p.name, p.role, p.alias, p.age, p.gender,
+                      p.last_known_location,
+                      (SELECT COUNT(*) FROM incident_persons WHERE person_id=p.id) as ic
+               FROM persons p WHERE 1=1"""
+    params = []
+    if role:
+        query += " AND p.role=?"; params.append(role)
+    if q:
+        query += " AND (p.name LIKE ? OR p.alias LIKE ? OR p.last_known_location LIKE ?)"
+        like = f"%{q}%"; params.extend([like, like, like])
+    query += " ORDER BY ic DESC, p.id DESC LIMIT ?"
+    params.append(limit)
+    c.execute(query, params)
+    rows = [{"id": r[0], "name": r[1], "role": r[2], "alias": r[3] or "",
+             "age": r[4], "gender": r[5], "last_known_location": r[6] or "",
+             "incident_count": r[7]} for r in c.fetchall()]
+    conn.close()
+    return rows
+
+
+@app.get("/api/persons/{person_id}")
+def get_person(person_id: int):
+    conn = get_db(); c = conn.cursor()
+    c.execute("SELECT * FROM persons WHERE id=?", (person_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close(); raise HTTPException(404, "Person not found")
+    person = dict(row)
+    c.execute("""SELECT i.id, i.crime_type, i.district, i.station, i.date,
+                        i.severity, i.status, ip.relationship
+                 FROM incident_persons ip JOIN incidents i ON i.id=ip.incident_id
+                 WHERE ip.person_id=? ORDER BY i.date DESC""", (person_id,))
+    person["incidents"] = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return person
+
+
+@app.post("/api/persons", status_code=201)
+def create_person(payload: PersonIn):
+    conn = get_db(); c = conn.cursor()
+    # Ensure notes column exists (safe idempotent add)
+    try:
+        c.execute("ALTER TABLE persons ADD COLUMN notes TEXT")
+    except Exception:
+        pass
+    c.execute("""INSERT INTO persons (name, role, alias, age, gender,
+                 last_known_location, notes)
+                 VALUES (?,?,?,?,?,?,?)""",
+              (payload.name, payload.role, payload.alias, payload.age,
+               payload.gender, payload.last_known_location, payload.notes))
+    person_id = c.lastrowid
+    if payload.incident_id:
+        c.execute("SELECT id FROM incidents WHERE id=?", (payload.incident_id,))
+        if c.fetchone():
+            rel = "suspect_in" if payload.role in ("suspect", "accused") else \
+                  ("victim_in" if payload.role == "victim" else "witness_in")
+            c.execute("""INSERT INTO incident_persons (incident_id, person_id, relationship)
+                         VALUES (?,?,?)""", (payload.incident_id, person_id, rel))
+    conn.commit(); conn.close()
+    return {"id": person_id, **payload.model_dump()}
+
+
+@app.put("/api/persons/{person_id}")
+def update_person(person_id: int, payload: PersonIn):
+    conn = get_db(); c = conn.cursor()
+    c.execute("SELECT id FROM persons WHERE id=?", (person_id,))
+    if not c.fetchone():
+        conn.close(); raise HTTPException(404, "Person not found")
+    try:
+        c.execute("ALTER TABLE persons ADD COLUMN notes TEXT")
+    except Exception:
+        pass
+    c.execute("""UPDATE persons SET name=?, role=?, alias=?, age=?, gender=?,
+                 last_known_location=?, notes=? WHERE id=?""",
+              (payload.name, payload.role, payload.alias, payload.age,
+               payload.gender, payload.last_known_location, payload.notes,
+               person_id))
+    conn.commit(); conn.close()
+    return {"id": person_id, **payload.model_dump()}
+
+
+@app.delete("/api/persons/{person_id}")
+def delete_person(person_id: int):
+    conn = get_db(); c = conn.cursor()
+    c.execute("SELECT id FROM persons WHERE id=?", (person_id,))
+    if not c.fetchone():
+        conn.close(); raise HTTPException(404, "Person not found")
+    c.execute("DELETE FROM person_associations WHERE person_id_1=? OR person_id_2=?",
+              (person_id, person_id))
+    c.execute("DELETE FROM incident_persons WHERE person_id=?", (person_id,))
+    c.execute("DELETE FROM persons WHERE id=?", (person_id,))
+    conn.commit(); conn.close()
+    return {"deleted": True, "id": person_id}
+# ==================== END NEW ====================
+
+
 @app.get("/api/socio-economic")
 def socio_economic():
     import random
@@ -354,31 +441,25 @@ def socio_economic():
 
 
 @app.get("/api/districts")
-def get_districts():
-    return list(DISTRICTS.keys())
+def get_districts(): return list(DISTRICTS.keys())
 
 
 @app.get("/api/crime-types")
-def get_crime_types():
-    return CRIME_TYPES
+def get_crime_types(): return CRIME_TYPES
 
 
 @app.get("/api/geo/boundaries")
-def geo_boundaries():
-    return fetch_district_boundaries()
+def geo_boundaries(): return fetch_district_boundaries()
 
 
 @app.get("/api/geo/stations")
-def geo_stations():
-    return fetch_police_stations()
+def geo_stations(): return fetch_police_stations()
 
 
 @app.get("/api/geo/search")
 def geo_search(q: str = Query(..., min_length=2)):
-    try:
-        return nominatim_search(q)
-    except Exception as e:
-        raise HTTPException(502, str(e))
+    try: return nominatim_search(q)
+    except Exception as e: raise HTTPException(502, str(e))
 
 
 @app.get("/api/geo/weather-cities")
@@ -397,8 +478,7 @@ def geo_weather_cities():
 @app.get("/api/geo/weather")
 def geo_weather(lat: float, lng: float):
     w = fetch_weather(lat, lng)
-    if not w:
-        raise HTTPException(502, "Weather fetch failed")
+    if not w: raise HTTPException(502, "Weather fetch failed")
     return {"temperature": w["temperature"], "windspeed": w["windspeed"],
             "weathercode": w["weathercode"],
             "description": weather_description(w["weathercode"]),
