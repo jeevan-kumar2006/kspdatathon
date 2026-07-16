@@ -990,7 +990,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     });
 });
 /* ================================================================
-   PS2 additions: theme toggle, suspect CRUD, broken-button fixes
+   PS2 additions: theme toggle, suspect CRUD
    ================================================================ */
 (function () {
   "use strict";
@@ -998,7 +998,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
   /* ---------- 1. Theme toggle (persisted in localStorage) ---------- */
-  const themeBtn = $("#themeToggle");
+  // FIX: Targeting class instead of ID to match your CSS
+  const themeBtn = $(".theme-toggle-btn"); 
   const applyTheme = (t) => {
     document.body.classList.toggle("theme-light", t === "light");
     if (themeBtn) {
@@ -1102,109 +1103,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  /* ---------- 3. Fix broken buttons ---------- */
-
-  // Hamburger dropdown toggle
-  const hb = $("#hamburger"), hbd = $("#hamburgerDropdown");
-  if (hb && hbd) {
-    hb.addEventListener("click", (e) => { e.stopPropagation(); hbd.classList.toggle("open"); });
-    document.addEventListener("click", (e) => {
-      if (!hb.contains(e.target) && !hbd.contains(e.target)) hbd.classList.remove("open");
-    });
-  }
-
-  // Advanced Visualization -> scroll to network lens
-  $("#btnAdvViz")?.addEventListener("click", () => {
-    hbd?.classList.remove("open");
-    document.getElementById("networkLens")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-
-  // Reset Time Filter
-  $("#btnResetTime")?.addEventListener("click", () => {
-    hbd?.classList.remove("open");
-    const slider = $("#hourSlider"), label = $("#hourLabel");
-    if (slider) { slider.value = -1; slider.dispatchEvent(new Event("input", { bubbles: true })); }
-    if (label) label.textContent = "All Hours";
-    $$(".time-preset").forEach(b => b.classList.toggle("active", b.dataset.hour === "-1"));
-  });
-
-  // Time preset chips
-  $$(".time-preset").forEach(btn => {
-    btn.addEventListener("click", () => {
-      $$(".time-preset").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      const h = btn.dataset.hour;
-      const slider = $("#hourSlider"), label = $("#hourLabel");
-      if (slider) { slider.value = h; slider.dispatchEvent(new Event("input", { bubbles: true })); }
-      if (label) label.textContent = h === "-1" ? "All Hours" : (String(h).padStart(2, "0") + ":00");
-    });
-  });
-
-  // Sync / Refresh button (soft reload of data)
-  $("#btnRefresh")?.addEventListener("click", () => {
-    const btn = $("#btnRefresh");
-    btn.classList.add("spinning");
-    // Try to trigger any existing refresh function used by the app
-    if (typeof window.loadDashboard === "function") window.loadDashboard();
-    if (typeof window.loadStats === "function") window.loadStats();
-    if (typeof window.refreshAll === "function") window.refreshAll();
-    setTimeout(() => { btn.classList.remove("spinning"); }, 900);
-  });
-
-  // Alert bell -> scroll to anomalies
-  $(".alert-button")?.addEventListener("click", () => {
-    document.getElementById("anomalyLens")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-
-  // Quick range chips (24h / 7d / 30d)
-  $$(".quick-range button").forEach(btn => {
-    btn.addEventListener("click", () => {
-      $$(".quick-range button").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-    });
-  });
-
-  // Saved-view chips (bookmark them, no-op filter for now)
-  $$(".saved-view button").forEach(btn => {
-    btn.addEventListener("click", () => {
-      $$(".saved-view button").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      // hook: could apply preset filters here
-    });
-  });
-
-  // Sidebar view buttons -> scroll to their section
-  $$(".sidebar-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      $$(".sidebar-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      const sec = btn.dataset.section;
-      const map = { overview: "sec-overview", map: "sec-map", network: "networkLens",
-                    predict: "sec-predict", offenders: "sec-offenders" };
-      const el = document.getElementById(map[sec] || sec);
-      el?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-
-  // Drawer tab anchors — smooth scroll
-  $$(".drawer-tabs a").forEach(a => {
-    a.addEventListener("click", (e) => {
-      const href = a.getAttribute("href");
-      if (href?.startsWith("#")) {
-        e.preventDefault();
-        document.querySelector(href)?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    });
-  });
-
-  // Layer toggles (visual feedback + custom event for map layers)
-  $$(".layer-toggle input[type=checkbox]").forEach(cb => {
-    cb.addEventListener("change", () => {
-      cb.closest(".layer-toggle")?.classList.toggle("off", !cb.checked);
-      document.dispatchEvent(new CustomEvent("kspLayerToggle", {
-        detail: { label: cb.closest(".layer-toggle")?.textContent.trim(), on: cb.checked }
-      }));
-    });
-  });
+  /* ---------- 3. REMOVED BROKEN BUTTON OVERRIDES ---------- */
+  // The duplicate event listeners for hamburger, advViz, refresh, etc. 
+  // have been removed from here to prevent them from overriding setupUI().
 })();
-
