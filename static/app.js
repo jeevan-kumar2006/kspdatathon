@@ -812,15 +812,15 @@ function setupUI() {
     // Advanced viz button in hamburger
     const advBtn = $('#btnAdvViz');
     if (advBtn) advBtn.addEventListener('click', ()=>{
-        $('#hamburgerDropdown').classList.remove('open');
-        $('#hamburger').classList.remove('active');
+        if (dropdown) dropdown.classList.remove('open');
+        if (hamburger) hamburger.classList.remove('active');
         AdvViz.toggle();
     });
 
     const resetTime = $('#btnResetTime');
     if (resetTime) resetTime.addEventListener('click', ()=>{
-        $('#hamburgerDropdown').classList.remove('open');
-        $('#hamburger').classList.remove('active');
+        if (dropdown) dropdown.classList.remove('open');
+        if (hamburger) hamburger.classList.remove('active');
         const slider = $('#hourSlider');
         if (slider) slider.value = -1;
         AdvViz.setTimeFilter(-1);
@@ -835,12 +835,16 @@ function setupUI() {
     const backDrill = $('#btnResetDrill');
     if (backDrill) backDrill.addEventListener('click', ()=> AdvViz.resetDrillDown());
 
-    // Filters
-    $('#filterDistrict').addEventListener('change', loadMapData);
-    $('#filterCrime').addEventListener('change', loadMapData);
+    // Filters (Null-safe to prevent script crash)
+    const filterDistrict = $('#filterDistrict');
+    if (filterDistrict) filterDistrict.addEventListener('change', loadMapData);
+    
+    const filterCrime = $('#filterCrime');
+    if (filterCrime) filterCrime.addEventListener('change', loadMapData);
 
-    // Refresh
-    $('#btnRefresh').addEventListener('click', ()=>{
+    // Refresh (Null-safe)
+    const btnRefresh = $('#btnRefresh');
+    if (btnRefresh) btnRefresh.addEventListener('click', ()=>{
         toast('Syncing all intelligence feeds...','info');
         loadAll();
     });
@@ -890,21 +894,27 @@ function setupUI() {
         });
     });
 
-    // Nominatim search
+    // Nominatim search (Null-safe to prevent script crash)
     let searchTimeout;
-    $('#searchInput').addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        const q = this.value.trim();
-        const box = $('#searchResults');
-        if (q.length < 3) { box.classList.add('hidden'); return; }
-        searchTimeout = setTimeout(async ()=>{
-            const results = await api('/geo/search?q='+encodeURIComponent(q));
-            if (!results || !results.length) { box.classList.add('hidden'); return; }
-            box.innerHTML = results.map(r=>`<div onclick="flyToSearch(${r.lat},${r.lng},'${r.name.replace(/'/g,"\\'")}')">${r.name} <span style="color:#444">— ${r.type}</span></div>`).join('');
-            box.classList.remove('hidden');
-        }, 400);
-    });
-    $('#searchInput').addEventListener('blur', ()=>{ setTimeout(()=>$('#searchResults').classList.add('hidden'), 200); });
+    const searchInput = $('#searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const q = this.value.trim();
+            const box = $('#searchResults');
+            if (!box) return;
+            if (q.length < 3) { box.classList.add('hidden'); return; }
+            searchTimeout = setTimeout(async ()=>{
+                const results = await api('/geo/search?q='+encodeURIComponent(q));
+                if (!results || !results.length) { box.classList.add('hidden'); return; }
+                box.innerHTML = results.map(r=>`<div onclick="flyToSearch(${r.lat},${r.lng},'${r.name.replace(/'/g,"\\'")}')">${r.name} <span style="color:#444">— ${r.type}</span></div>`).join('');
+                box.classList.remove('hidden');
+            }, 400);
+        });
+        searchInput.addEventListener('blur', ()=>{ 
+            setTimeout(()=>{ const box = $('#searchResults'); if(box) box.classList.add('hidden'); }, 200); 
+        });
+    }
 
     if (hamburger) hamburger.addEventListener('keydown', (e)=>{
         if (e.key === 'Enter' || e.key === ' ') {
