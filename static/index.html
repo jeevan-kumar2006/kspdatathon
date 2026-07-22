@@ -1,250 +1,256 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KSP Crime Intelligence Platform</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-tailwind.config={theme:{extend:{colors:{bg:{DEFAULT:'#0B0E14',card:'#12161F'},accent:{DEFAULT:'#4C8DFF',dim:'rgba(76,141,255,0.14)',glow:'rgba(76,141,255,0.36)'},silver:'#8B93A3',danger:'#FF5D5D',success:'#3DDC97',warning:'#FFB84D'},fontFamily:{display:['IBM Plex Sans','sans-serif'],body:['IBM Plex Sans','sans-serif'],mono:['IBM Plex Mono','monospace']}}}}
-</script>
-<link rel="stylesheet" href="/static/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KSP Crime Intelligence Platform</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<div id="fallbackBadge" class="fallback-badge"><i class="fa-solid fa-database mr-1"></i>Fallback data</div>
-
-<header class="topbar scan-line">
-  <div class="topbar-left">
-    <div class="relative shrink-0">
-      <div id="hamburger" class="hamburger" role="button" tabindex="0" aria-label="Menu"><span></span><span></span><span></span></div>
-      <div id="hamburgerDropdown" class="hamburger-dropdown">
-        <button id="btnAdvViz"><i class="fa-solid fa-crosshairs"></i> Advanced Visualization</button>
-        <div class="divider"></div>
-        <button id="btnResetTime"><i class="fa-solid fa-clock"></i> Reset Time Filter</button>
-      </div>
-    </div>
-    <div class="brand-mark"><i class="fa-solid fa-shield-halved"></i></div>
-    <div>
-      <h1>KSP Crime Intelligence</h1>
-      <p>Karnataka State Police - SCRB</p>
-    </div>
-  </div>
-  <div class="command-search">
-    <i class="fa-solid fa-magnifying-glass"></i>
-    <input id="searchInput" type="text" placeholder="Search case, place, beat, or offender" autocomplete="off" aria-label="Search">
-    <span>AI</span>
-    <div id="searchResults" class="search-results hidden"></div>
-  </div>
-  <div class="topbar-actions">
-    <div id="weatherBar" class="weather-strip"><span class="weather-label"><i class="fa-solid fa-cloud-sun"></i> Live</span></div>
-    <button class="alert-button" type="button" aria-label="Alerts"><i class="fa-solid fa-bell"></i><span>8</span></button>
-    <button id="btnRefresh" class="sync-button"><i class="fa-solid fa-rotate"></i> Sync</button>
-  </div>
-</header>
-
-<div id="timeSlider" class="time-slider-bar">
-  <label>Spatiotemporal</label>
-  <input type="range" id="hourSlider" min="-1" max="23" value="-1">
-  <span id="hourLabel" class="hour-readout">All Hours</span>
-  <button class="btn-sm time-preset" data-hour="-1">All</button>
-  <button class="btn-sm time-preset" data-hour="0">00</button>
-  <button class="btn-sm time-preset" data-hour="6">06</button>
-  <button class="btn-sm time-preset" data-hour="12">12</button>
-  <button class="btn-sm time-preset" data-hour="18">18</button>
-  <button class="btn-sm time-preset" data-hour="21">21</button>
-</div>
-
-<div class="alert-strip">
-  <div class="alert-label">Alerts</div>
-  <div class="alert-marquee"><div id="alertTicker" class="alert-ticker"><span>Connecting...</span></div></div>
-</div>
-
-<main class="ops-shell">
-  <aside class="left-rail" role="navigation" aria-label="Main navigation">
-    <section class="rail-group">
-      <p>View</p>
-      <button class="sidebar-btn active" data-section="overview" title="City"><i class="fa-solid fa-city"></i><span>City</span></button>
-      <button class="sidebar-btn" data-section="map" title="Map"><i class="fa-solid fa-map-location-dot"></i><span>District</span></button>
-      <button class="sidebar-btn" data-section="network" title="Network"><i class="fa-solid fa-diagram-project"></i><span>Network</span></button>
-      <button class="sidebar-btn" data-section="predict" title="Predictions"><i class="fa-solid fa-chart-line"></i><span>Risk</span></button>
-      <button class="sidebar-btn" data-section="offenders" title="Offenders"><i class="fa-solid fa-user-secret"></i><span>Cases</span></button>
-    </section>
-    <section class="rail-group">
-      <p>Layers</p>
-      <label class="layer-toggle"><span class="swatch heat"></span><span>Hotspot heat</span><input type="checkbox" checked></label>
-      <label class="layer-toggle"><span class="swatch repeat"></span><span>Repeat clusters</span><input type="checkbox" checked></label>
-      <label class="layer-toggle"><span class="swatch socio"></span><span>Socio-economic</span><input type="checkbox"></label>
-      <label class="layer-toggle"><span class="swatch risk"></span><span>Risk grid</span><input type="checkbox" checked></label>
-    </section>
-    <section class="rail-group">
-      <p>Filters</p>
-      <select id="filterDistrict" aria-label="District"><option value="">All Districts</option></select>
-      <select id="filterCrime" aria-label="Crime"><option value="">All Crimes</option></select>
-      <div class="quick-range"><button>24h</button><button class="active">7d</button><button>30d</button></div>
-    </section>
-    <section class="rail-group saved-view">
-      <p>Saved</p>
-      <button><i class="fa-solid fa-bookmark"></i> Night watch</button>
-      <button><i class="fa-solid fa-bookmark"></i> Property crime</button>
-    </section>
-  </aside>
-
-  <section id="sec-map" class="situation-map">
-    <div class="map-toolbar">
-      <div class="breadcrumb"><span>Ballari</span><i class="fa-solid fa-chevron-right"></i><span>City View</span></div>
-      <div><i class="fa-solid fa-satellite-dish"></i> Situation Map <span>OSM + Overpass</span></div>
-    </div>
-    <div id="map"></div>
-    <div id="boundaryLoader" class="boundary-loading" style="display:none"><div class="loader"></div>Loading boundaries...</div>
-    <div id="districtLegend" class="district-legend" style="display:none">
-      <p>Crime density</p>
-      <div><span class="swatch critical"></span><span>Critical</span></div>
-      <div><span class="swatch high"></span><span>High</span></div>
-      <div><span class="swatch medium"></span><span>Medium</span></div>
-      <div><span class="swatch low"></span><span>Low</span></div>
-    </div>
-  </section>
-
-  <aside class="right-panel">
-    <section id="sec-overview" class="kpi-stack">
-      <div class="panel-heading"><span>City-wide status</span><small>Updated from live feeds</small></div>
-      <div class="kpi-card"><p>Total Incidents</p><strong class="stat-num" data-count="0">0</strong><span><i class="fa-solid fa-database"></i> Records</span></div>
-      <div class="kpi-card warn"><p>Under Investigation</p><strong class="stat-num" data-count="0">0</strong><span><i class="fa-solid fa-magnifying-glass"></i> Active</span></div>
-      <div class="kpi-card ok"><p>Chargesheet Filed</p><strong class="stat-num" data-count="0">0</strong><span><i class="fa-solid fa-file-signature"></i> Filed</span></div>
-      <div class="mini-kpis">
-        <div><p>Districts</p><strong class="stat-num" data-count="0">0</strong></div>
-        <div><p>Stations</p><strong class="stat-num" data-count="0">0</strong></div>
-        <div><p>High Risk</p><strong class="stat-num" data-count="0">0</strong></div>
-      </div>
-    </section>
-    <section class="intel-panel">
-      <div class="panel-heading"><span>Hotspots</span><small>KMeans clusters</small></div>
-      <div id="hotspotList" class="hotspot-list"></div>
-    </section>
-  </aside>
-
-  <section class="bottom-drawer">
-    <div class="drawer-handle"></div>
-    <nav class="drawer-tabs">
-      <a href="#trendsLens"><i class="fa-solid fa-chart-area"></i> Trends</a>
-      <a href="#anomalyLens"><i class="fa-solid fa-triangle-exclamation"></i> Anomalies</a>
-      <a href="#networkLens"><i class="fa-solid fa-diagram-project"></i> Network</a>
-      <a href="#caseLens"><i class="fa-solid fa-table"></i> Cases</a>
-    </nav>
-    <div class="drawer-content">
-      <section id="trendsLens" class="lens-card wide">
-        <h2><i class="fa-solid fa-chart-line"></i> Monthly Trend</h2>
-        <canvas id="chartTrend" height="170"></canvas>
-      </section>
-      <section class="lens-card">
-        <h2><i class="fa-solid fa-bars-staggered"></i> Crime Types</h2>
-        <canvas id="chartTypes" height="200"></canvas>
-      </section>
-      <section class="lens-card">
-        <h2><i class="fa-solid fa-clock"></i> Hourly Pattern</h2>
-        <canvas id="chartHourly" height="150"></canvas>
-      </section>
-      <section class="lens-card">
-        <h2><i class="fa-solid fa-gauge-high"></i> Severity</h2>
-        <canvas id="chartSeverity" height="150"></canvas>
-      </section>
-      <section id="networkLens" class="lens-card wide">
-        <div class="lens-title-row">
-          <h2 id="sec-network"><i class="fa-solid fa-diagram-project"></i> Network & Link Analysis</h2>
-          <div class="network-legend"><span><i class="suspect"></i>Suspect</span><span><i class="victim"></i>Victim</span><span><i class="witness"></i>Witness</span></div>
+    <!-- Top Bar -->
+    <header class="topbar">
+        <div class="topbar-left">
+            <button id="hamburger" class="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
+            <div class="brand-mark"><i class="fa-solid fa-shield-halved"></i></div>
+            <div>
+                <h1>KSP Crime Intelligence</h1>
+                <p>Karnataka State Police</p>
+            </div>
         </div>
-        <div id="networkGraph"></div>
-      </section>
-      <section id="sec-predict" class="lens-card">
-        <h2><i class="fa-solid fa-brain"></i> Predictive Risk <span>AI</span></h2>
-        <div class="table-wrap"><table class="data-table"><thead><tr><th>District</th><th>Trend</th><th>Next</th><th>Risk</th><th>Change</th></tr></thead><tbody id="predTable"></tbody></table></div>
-      </section>
-      <section id="anomalyLens" class="lens-card">
-        <h2><i class="fa-solid fa-exclamation-circle"></i> Anomalies <span>AI</span></h2>
-        <div id="anomalyList" class="anomaly-list"></div>
-      </section>
-      <section id="sec-offenders" class="lens-card wide">
-        <h2><i class="fa-solid fa-user-secret"></i> Repeat Offenders - Modus Operandi</h2>
-        <div id="offenderCards" class="offender-cards"></div>
-      </section>
-      <section id="caseLens" class="lens-card wide">
-        <h2><i class="fa-solid fa-scale-balanced"></i> Socio-economic Correlation</h2>
-        <canvas id="chartSocio" height="200"></canvas>
-      </section>
-    </div>
-  </section>
-</main>
-
-<div id="advPanel" class="adv-panel">
-  <div class="adv-panel-header">
-    <h2><i class="fa-solid fa-crosshairs"></i> Advanced Visualization</h2>
-    <button id="closeAdvPanel" type="button" aria-label="Close advanced visualization"><i class="fa-solid fa-xmark"></i></button>
-  </div>
-  <div class="adv-panel-body">
-    <div id="drillDistrictList"></div>
-    <div id="drillState" style="display:none">
-      <button id="btnResetDrill" class="drill-back-btn"><i class="fa-solid fa-arrow-left"></i> Back to All Districts</button>
-      <h3 id="drillDistrictName"></h3>
-      <div id="drillStats"></div>
-      <h3>By Station</h3>
-      <div id="drillStations"></div>
-      <h3>Crime Breakdown</h3>
-      <canvas id="drillCrimeChart" height="140"></canvas>
-      <h3>Hourly Pattern</h3>
-      <canvas id="drillTimeChart" height="120"></canvas>
-    </div>
-  </div>
-</div>
-<div id="toast" class="toast" role="alert" aria-live="polite"></div>
-<script src="/static/app.js"></script>
-  <!-- ============ Theme Toggle Button ============ -->
-<button id="themeToggle" class="theme-toggle-btn" title="Toggle theme" aria-label="Toggle theme">
-  <i class="fa-solid fa-moon"></i>
-</button>
-
-<!-- ============ Suspect Manager FAB ============ -->
-<button id="suspectFab" class="suspect-fab" title="Manage suspects" aria-label="Manage suspects">
-  <i class="fa-solid fa-user-plus"></i>
-</button>
-
-<!-- ============ Suspect Modal ============ -->
-<div id="suspectModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
-  <div class="modal-card">
-    <div class="modal-head">
-      <h3><i class="fa-solid fa-user-shield"></i> Suspect Manager</h3>
-      <button id="suspectClose" class="modal-close" aria-label="Close">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="suspect-form">
-        <input id="sName" type="text" placeholder="Full name *" maxlength="80">
-        <input id="sAlias" type="text" placeholder="Alias (optional)" maxlength="80">
-        <div class="row2">
-          <input id="sAge" type="number" placeholder="Age" min="1" max="120">
-          <select id="sGender"><option value="">Gender</option><option>M</option><option>F</option><option>Other</option></select>
+        
+        <div class="command-search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input id="searchInput" type="text" placeholder="Search location (e.g., Mysore, Bangalore)..." autocomplete="off">
+            <div id="searchResults" class="search-results hidden"></div>
         </div>
-        <select id="sRole">
-          <option value="suspect">Suspect</option>
-          <option value="accused">Accused</option>
-          <option value="victim">Victim</option>
-          <option value="witness">Witness</option>
-        </select>
-        <input id="sLocation" type="text" placeholder="Last known location" maxlength="160">
-        <input id="sIncident" type="number" placeholder="Link to incident ID (optional)" min="1">
-        <textarea id="sNotes" placeholder="Notes / MO / description" maxlength="500" rows="2"></textarea>
-        <button id="sSave" class="btn-primary"><i class="fa-solid fa-plus"></i> Add Suspect</button>
-      </div>
-      <div class="suspect-search">
-        <input id="sSearch" type="text" placeholder="Search suspects by name / alias / location...">
-      </div>
-      <div id="suspectList" class="suspect-list"></div>
+
+        <div class="topbar-actions">
+            <div class="weather-strip" id="weatherBar">
+                <span class="weather-label">Weather:</span>
+            </div>
+            <button class="alert-button" id="alertBtn" title="Active Alerts">
+                <i class="fa-solid fa-bell"></i>
+                <span id="alertCount">0</span>
+            </button>
+            <button class="sync-button" id="btnAddReport" title="Add New Report">
+                <i class="fa-solid fa-plus"></i> Add Report
+            </button>
+            <button class="theme-toggle-btn" id="themeToggle" title="Toggle Theme"></button>
+        </div>
+
+        <div id="hamburgerDropdown" class="hamburger-dropdown">
+            <button id="btnAdvViz"><i class="fa-solid fa-chart-line"></i> Advanced Viz</button>
+            <button id="btnResetTime"><i class="fa-solid fa-clock-rotate-left"></i> Reset Time Filter</button>
+            <div class="divider"></div>
+            <button id="btnRefresh"><i class="fa-solid fa-rotate"></i> Sync Data</button>
+        </div>
+    </header>
+
+    <!-- Alert Ticker -->
+    <div class="alert-strip">
+        <div class="alert-label">Alerts</div>
+        <div class="alert-marquee"><div id="alertTicker" class="alert-ticker"><span>No active alerts</span></div></div>
     </div>
-  </div>
-</div>
+
+    <!-- Main Grid -->
+    <div class="ops-shell">
+        <!-- Left Rail -->
+        <aside class="left-rail">
+            <div class="rail-group">
+                <p>Navigation</p>
+                <button class="sidebar-btn active" data-section="overview"><i class="fa-solid fa-gauge"></i> <span>Overview</span></button>
+                <button class="sidebar-btn" data-section="map"><i class="fa-solid fa-map"></i> <span>Map View</span></button>
+                <button class="sidebar-btn" data-section="networkLens"><i class="fa-solid fa-project-diagram"></i> <span>Network</span></button>
+                <button class="sidebar-btn" data-section="predict"><i class="fa-solid fa-brain"></i> <span>Predictions</span></button>
+            </div>
+            <div class="rail-group">
+                <p>Filters</p>
+                <select id="filterDistrict"><option value="">All Districts</option></select>
+                <select id="filterCrime"><option value="">All Crime Types</option></select>
+                <div class="quick-range">
+                    <button data-range="1">24h</button>
+                    <button class="active" data-range="7">7d</button>
+                    <button data-range="30">30d</button>
+                </div>
+            </div>
+            <div class="rail-group">
+                <p>Map Layers</p>
+                <label class="layer-toggle"><input type="checkbox" checked> <span class="swatch heat"></span> <span>Hotspots</span></label>
+                <label class="layer-toggle"><input type="checkbox" checked> <span class="swatch repeat"></span> <span>Stations</span></label>
+                <label class="layer-toggle"><input type="checkbox" checked> <span class="swatch risk"></span> <span>Red Zones</span></label>
+            </div>
+        </aside>
+
+        <!-- Map Section -->
+        <main class="situation-map" id="sec-map">
+            <div id="map"></div>
+            <div class="map-toolbar">
+                <div><i class="fa-solid fa-location-crosshairs"></i> <span id="mapFocus">Karnataka State</span></div>
+            </div>
+            <div class="boundary-loading hidden" id="boundaryLoader"><div class="loader"></div> Loading boundaries...</div>
+            <div class="district-legend hidden" id="districtLegend">
+                <p>Crime Density</p>
+                <div><span class="swatch critical"></span> Critical</div>
+                <div><span class="swatch high"></span> High</div>
+                <div><span class="swatch medium"></span> Medium</div>
+                <div><span class="swatch low"></span> Low</div>
+            </div>
+        </main>
+
+        <!-- Right Panel -->
+        <aside class="right-panel">
+            <div class="kpi-stack">
+                <div class="kpi-card"><strong id="kpiTotal">0</strong><span>Total Incidents</span></div>
+                <div class="mini-kpis">
+                    <div><strong id="kpiPending">0</strong><p>Pending</p></div>
+                    <div><strong id="kpiCharged">0</strong><p>Chargesheet</p></div>
+                    <div><strong id="kpiHighRisk">0</strong><p>High Risk</p></div>
+                </div>
+            </div>
+            <div class="intel-panel">
+                <div class="panel-heading"><span>Hotspot Analysis</span> <small>Top 5</small></div>
+                <div class="hotspot-list" id="hotspotList"></div>
+            </div>
+            <div class="intel-panel">
+                <div class="panel-heading"><span>Trend (24h)</span></div>
+                <canvas id="chartTrend" height="100"></canvas>
+            </div>
+        </aside>
+
+        <!-- Bottom Drawer -->
+        <section class="bottom-drawer" id="bottomDrawer">
+            <div class="drawer-handle" id="drawerHandle"><i class="fa-solid fa-grip-lines"></i></div>
+            <div class="drawer-tabs">
+                <a href="#networkLens" class="active"><i class="fa-solid fa-project-diagram"></i> Network</a>
+                <a href="#sec-predict"><i class="fa-solid fa-brain"></i> Predict</a>
+                <a href="#anomalyLens"><i class="fa-solid fa-triangle-exclamation"></i> Anomalies</a>
+                <a href="#sec-offenders"><i class="fa-solid fa-user-secret"></i> Offenders</a>
+            </div>
+            <div class="drawer-content">
+                <!-- Network Lens -->
+                <div class="lens-card wide" id="networkLens">
+                    <div class="lens-title-row">
+                        <h2><i class="fa-solid fa-project-diagram"></i> Network & Link Analysis</h2>
+                        <div class="network-toolbar">
+                            <button data-net-filter="all" class="active">All</button>
+                            <button data-net-filter="Suspect">Suspects</button>
+                            <button data-net-filter="Victim">Victims</button>
+                        </div>
+                    </div>
+                    <div id="networkGraph"></div>
+                    <div class="network-legend">
+                        <span><i class="suspect"></i> Suspect</span>
+                        <span><i class="victim"></i> Victim</span>
+                        <span><i class="witness"></i> Witness</span>
+                    </div>
+                </div>
+
+                <!-- Predict Lens -->
+                <div class="lens-card" id="sec-predict">
+                    <h2><i class="fa-solid fa-brain"></i> Predictive Risk</h2>
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead><tr><th>District</th><th>Trend</th><th>Risk</th></tr></thead>
+                            <tbody id="predTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Anomaly Lens -->
+                <div class="lens-card" id="anomalyLens">
+                    <h2><i class="fa-solid fa-triangle-exclamation"></i> Anomalies</h2>
+                    <div class="anomaly-list" id="anomalyList"></div>
+                </div>
+
+                <!-- Offenders Lens -->
+                <div class="lens-card" id="sec-offenders">
+                    <div class="lens-title-row">
+                        <h2><i class="fa-solid fa-user-secret"></i> Repeat Offenders</h2>
+                        <button class="btn-sm" id="openSuspectModal"><i class="fa-solid fa-plus"></i> Add</button>
+                    </div>
+                    <div class="offender-cards" id="offenderCards"></div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Add Report Modal -->
+    <div class="modal-backdrop hidden" id="reportModal">
+        <div class="modal-card">
+            <div class="modal-head">
+                <h3>Add Intelligence Report</h3>
+                <button class="modal-close" data-modal-close>&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="reportForm">
+                    <div class="suspect-form">
+                        <select id="rCrime" required></select>
+                        <select id="rDistrict" required></select>
+                        <input type="text" id="rStation" placeholder="Station Name" required>
+                        <div class="row2">
+                            <input type="date" id="rDate" required>
+                            <input type="time" id="rTime" required>
+                        </div>
+                        <div class="row2">
+                            <input type="number" id="rLat" placeholder="Latitude" step="0.01" required>
+                            <input type="number" id="rLng" placeholder="Longitude" step="0.01" required>
+                        </div>
+                        <select id="rStatus">
+                            <option>Under Investigation</option>
+                            <option>Chargesheet Filed</option>
+                            <option>Closed - Untraced</option>
+                        </select>
+                        <textarea id="rMO" placeholder="Modus Operandi (How crime occurred)" rows="2"></textarea>
+                        <button type="submit" class="btn-primary">Submit Report</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Suspect Modal -->
+    <div class="modal-backdrop hidden" id="suspectModal">
+        <div class="modal-card">
+            <div class="modal-head">
+                <h3>Suspect Management</h3>
+                <button class="modal-close" data-modal-close>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="suspect-search">
+                    <input type="text" id="sSearch" placeholder="Search suspects...">
+                </div>
+                <div class="suspect-list" id="suspectList"></div>
+                <hr style="margin: 16px 0; border-color: var(--border-soft);">
+                <h3 style="margin-bottom: 10px;">Add New Suspect</h3>
+                <form id="suspectForm">
+                    <div class="suspect-form">
+                        <input type="text" id="sName" placeholder="Full Name" required>
+                        <div class="row2">
+                            <select id="sRole">
+                                <option value="suspect">Suspect</option>
+                                <option value="victim">Victim</option>
+                                <option value="witness">Witness</option>
+                            </select>
+                            <input type="number" id="sAge" placeholder="Age" min="18" max="120">
+                        </div>
+                        <input type="text" id="sAlias" placeholder="Alias (Optional)">
+                        <input type="text" id="sLocation" placeholder="Last Known Location">
+                        <button type="submit" class="btn-primary">Add Person</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="/static/app.js"></script>
 </body>
 </html>
