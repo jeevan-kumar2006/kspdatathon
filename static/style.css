@@ -81,7 +81,20 @@ button { cursor: pointer; }
 .search-results div { padding: 10px 12px; border-bottom: 1px solid var(--border-hairline); color: var(--text-secondary); cursor: pointer; }
 .search-results div:hover { background: var(--bg-surface); color: var(--text-primary); }
 
-.topbar-actions { justify-content: flex-end; gap: 10px; }
+.topbar-actions { justify-content: flex-end; gap: 8px; min-width: 0; flex-wrap: nowrap; }
+
+/* Weather strip — keep compact so it doesn't blow the topbar */
+.weather-strip {
+    display: flex; align-items: center; gap: 6px;
+    max-width: 260px; overflow-x: auto; overflow-y: hidden;
+    height: 36px; padding: 0 8px;
+    border: 1px solid var(--border-hairline); border-radius: 8px;
+    background: var(--bg-surface); scrollbar-width: none;
+}
+.weather-strip::-webkit-scrollbar { display: none; }
+.weather-label { color: var(--text-secondary); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+.weather-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 6px; background: var(--bg-surface-raised); color: var(--text-primary); font-size: 11px; font-family: var(--font-mono); white-space: nowrap; }
+
 .sync-button { height: 36px; border: 0; border-radius: 8px; background: var(--accent-info); color: #fff; font-weight: 600; padding: 0 12px; display: flex; align-items: center; gap: 8px; }
 .alert-button { height: 36px; width: 36px; border: 1px solid var(--border-hairline); border-radius: 8px; background: var(--bg-surface); color: var(--text-primary); position: relative; }
 .alert-button span { position: absolute; top: -5px; right: -5px; background: var(--accent-alert); color: #fff; font-size: 10px; padding: 2px 5px; border-radius: 99px; }
