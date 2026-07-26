@@ -1,0 +1,30 @@
+{
+  "defaults": {
+    "project": 1,
+    "env": 1
+  },
+  "actives": {
+    "project": 1,
+    "env": 1
+  },
+  "projects": [
+    {
+      "idx": 1,
+      "id": "54598000000022001",
+      "name": "kspdatathon",
+      "domain": {
+        "id": "50044368323",
+        "name": "kspdatathon-60078269225.development"
+      },
+      "timezone": "Asia/Kolkata",
+      "env": [
+        {
+          "idx": 1,
+          "id": "60078269225",
+          "name": "Development",
+          "type": 3
+        }
+      ]
+    }
+  ]
+}
