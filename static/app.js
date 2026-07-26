@@ -6,7 +6,6 @@
 // SECTION 1: STATE & CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════
 
-// Auto-detect: served from FastAPI → relative URL, else absolute
 const isServed = window.location.port === '8000';
 let API = isServed ? '/api' : 'http://localhost:8000/api';
 
@@ -18,43 +17,21 @@ const CRIME_COLORS = {
     'Sexual Offense':'#d92c5f','Cheating':'#ffd166'
 };
 
-// Application state
 const state = {
-    map: null,
-    network: null,
-    charts: {},
-    boundaryLayer: null,
-    stationLayer: null,
-    incidentLayer: null,
-    hotspotLayer: null,
-    redzoneLayer: null,
-    drilldownLayer: null,
-    districtCrimeMap: {},
-    allIncidents: [],
-    allHotspots: [],
-    trendAlerts: [],
-    advancedMode: false,
-    drilledDistrict: null,
-    selectedHour: -1,
-    selectedRangeDays: 7,
+    map: null, network: null, charts: {}, boundaryLayer: null, stationLayer: null,
+    incidentLayer: null, hotspotLayer: null, redzoneLayer: null, drilldownLayer: null,
+    districtCrimeMap: {}, allIncidents: [], allHotspots: [], trendAlerts: [],
+    advancedMode: false, drilledDistrict: null, selectedHour: -1, selectedRangeDays: 7,
     usingFallback: false
 };
 
-
 // ═══════════════════════════════════════════════════════════════════
-// SECTION 2: DETERMINISTIC FALLBACK DATA GENERATOR
+// SECTION 2: FALLBACK DATA GENERATOR
 // ═══════════════════════════════════════════════════════════════════
 
-function makeRng(seed) {
-    let s = seed;
-    return function() { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
-}
+function makeRng(seed) { let s = seed; return function() { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
 function pick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
-function wPick(rng, arr, w) {
-    let t = w.reduce((a,b)=>a+b,0), r = rng()*t, a = 0;
-    for (let i=0;i<arr.length;i++) { a+=w[i]; if(r<=a) return arr[i]; }
-    return arr[arr.length-1];
-}
+function wPick(rng, arr, w) { let t = w.reduce((a,b)=>a+b,0), r = rng()*t, a = 0; for (let i=0;i<arr.length;i++) { a+=w[i]; if(r<=a) return arr[i]; } return arr[arr.length-1]; }
 
 function generateFallbackData() {
     const rng = makeRng(42);
@@ -84,7 +61,6 @@ function generateFallbackData() {
     const LN = ["Kumar","Reddy","Gowda","Sharma","Patil","Naik","Rao","Hegde","Shetty","Pai","Bhat","Kulkarni","Desai","Joshi"];
     const HW = [1,1,1,1,1,2,3,4,3,3,4,5,6,6,5,5,5,6,7,8,7,5,4,2];
 
-    // Generate 2000 incidents with station names
     const incidents = [];
     const distCounts = {};
     for (let i = 0; i < 2000; i++) {
@@ -104,7 +80,6 @@ function generateFallbackData() {
         distCounts[d.n] = (distCounts[d.n]||0) + 1;
     }
 
-    // Hotspots
     const hotspots = DISTS.filter(d=>(distCounts[d.n]||0)>8).slice(0,12).map(d=>({
         lat:d.lat, lng:d.lng, count:distCounts[d.n]||15,
         top_crime:"Theft", top_crime_count:Math.floor((distCounts[d.n]||15)*0.3),
@@ -112,25 +87,13 @@ function generateFallbackData() {
         radius:Math.min(200,(distCounts[d.n]||15)*3)
     }));
 
-    // Monthly trend
     const monthly = [];
-    for (let m=0;m<24;m++) {
-        monthly.push({month:`${2023+Math.floor(m/12)}-${String((m%12)+1).padStart(2,'0')}`, count:140+Math.floor(rng()*120)});
-    }
-
-    // Crime types
+    for (let m=0;m<24;m++) { monthly.push({month:`${2023+Math.floor(m/12)}-${String((m%12)+1).padStart(2,'0')}`, count:140+Math.floor(rng()*120)}); }
     const byType = CR.map(c=>({type:c, count:Math.floor(rng()*400)+50})).sort((a,b)=>b.count-a.count);
-
-    // Hourly
     const hourly = Array.from({length:24},(_,h)=>({hour:h, count:Math.floor(40+160*Math.sin((h-4)/24*Math.PI*2)*0.5+rng()*40)}));
-
-    // Severity
     const severity = [{level:"Low",count:700},{level:"Medium",count:900},{level:"High",count:350},{level:"Critical",count:50}];
-
-    // District crime for map coloring
     const distCrime = DISTS.map(d=>({district:d.n, count:distCounts[d.n]||Math.floor(rng()*40)+5, avg_sev:+(3+rng()*5).toFixed(1)}));
 
-    // Network
     const nodes = [], edges = [];
     for (let i=0;i<45;i++) {
         const role = i<18?"Suspect":i<33?"Victim":"Witness";
@@ -142,40 +105,26 @@ function generateFallbackData() {
         edges.push({from, to, label:i<22?pick(rng,["Known Associate","Co-accused","Same Gang","Family Connection"]):"Co-involved", title:"linked", value:Math.floor(rng()*8)+1, dashes:i>=22});
     }
 
-    // Predictions
     const predictions = DISTS.slice(0,18).map(d=>{
         const ch=Math.round((rng()-0.4)*60);
         return {district:d.n, historical_avg:+(140+rng()*100).toFixed(1), p1:Math.floor(140+rng()*100), p2:Math.floor(140+rng()*100), p3:Math.floor(140+rng()*100), trend:ch>10?"increasing":ch<-10?"decreasing":"stable", risk_change:ch, risk_level:ch>20?"high":ch>5?"medium":"low"};
     }).sort((a,b)=>b.risk_change-a.risk_change);
 
-    // Anomalies
     const anomalies = incidents.slice(0,18).map(inc=>({...inc, reason:`Unusual ${inc.crime_type} in ${inc.district} at ${inc.time}`}));
-
-    // Trend alerts
     const alerts = DISTS.slice(0,6).map(d=>{const p=Math.floor(30+rng()*120); return {district:d.n, crime_type:pick(rng,CR.slice(0,5)), recent:Math.floor(10+rng()*30), previous:Math.floor(5+rng()*15), increase_pct:p, severity:p>100?"critical":p>50?"high":"medium"};});
-
-    // Offenders
     const offenders = Array.from({length:12},(_,i)=>{
         const name=pick(rng,FN)+" "+pick(rng,LN);
         const ds=[pick(rng,DISTS).n, pick(rng,DISTS).n];
         return {id:i+1, name, alias:name.charAt(0)+"."+name.split(" ")[1], age:25+Math.floor(rng()*30), gender:Math.random()>0.5?"Male":"Female", location:ds[0], incident_count:3+Math.floor(rng()*8), crime_types:[pick(rng,CR),pick(rng,CR)], methods:[pick(rng,MO),pick(rng,MO)], districts:[...new Set(ds)]};
     }).sort((a,b)=>b.incident_count-a.incident_count);
 
-    // Socio-economic
     const socio = DISTS.map(d=>({district:d.n, crime_count:distCounts[d.n]||Math.floor(rng()*40)+5, avg_severity:+(3+rng()*5).toFixed(1), population_density:Math.floor(200+rng()*7800), urbanization_rate:+(0.2+rng()*0.75).toFixed(2), literacy_rate:+(0.6+rng()*0.35).toFixed(2), poverty_index:+(0.05+rng()*0.35).toFixed(2)}));
 
-    // District drill-down data
     const drillDown = {};
     DISTS.forEach(d => {
         const dInc = incidents.filter(i=>i.district===d.n);
-        const stations = {};
-        const types = {};
-        const hours = {};
-        dInc.forEach(i => {
-            stations[i.station] = (stations[i.station]||0)+1;
-            types[i.crime_type] = (types[i.crime_type]||0)+1;
-            hours[i.hour] = (hours[i.hour]||0)+1;
-        });
+        const stations = {}; const types = {}; const hours = {};
+        dInc.forEach(i => { stations[i.station]=(stations[i.station]||0)+1; types[i.crime_type]=(types[i.crime_type]||0)+1; hours[i.hour]=(hours[i.hour]||0)+1; });
         drillDown[d.n] = {
             total: dInc.length,
             avg_sev: dInc.length ? +(dInc.reduce((a,i)=>a+i.severity,0)/dInc.length).toFixed(1) : 0,
@@ -192,9 +141,7 @@ function generateFallbackData() {
     };
 }
 
-// GENERATE FALLBACK DATA IMMEDIATELY — before anything else
 const FALLBACK = generateFallbackData();
-
 
 // ═══════════════════════════════════════════════════════════════════
 // SECTION 3: API & UTILITY FUNCTIONS
@@ -208,21 +155,17 @@ async function api(url) {
         clearTimeout(timeout);
         if (!r.ok) throw new Error(r.status);
         return await r.json();
-    } catch(e) {
-        return null;
-    }
+    } catch(e) { return null; }
 }
 
 function toast(msg, type) {
     const t = document.getElementById('toast');
     if (!t) return;
     if (t.dataset.lastMsg === msg && Date.now() - Number(t.dataset.lastAt || 0) < 1200) return;
-    t.dataset.lastMsg = msg;
-    t.dataset.lastAt = Date.now();
+    t.dataset.lastMsg = msg; t.dataset.lastAt = Date.now();
     const colors = {info:'#8052ff', error:'#FF2D2D', success:'#15846e', warning:'#FFB84D'};
     t.style.borderLeftColor = colors[type||'info']||colors.info;
-    t.textContent = msg;
-    t.classList.add('show');
+    t.textContent = msg; t.classList.add('show');
     clearTimeout(t._timer);
     t._timer = setTimeout(()=>t.classList.remove('show'), 3500);
 }
@@ -249,7 +192,6 @@ function showEmpty(el, msg) {
         : `<div class="empty-state">${msg}</div>`;
 }
 
-
 // ═══════════════════════════════════════════════════════════════════
 // SECTION 4: MAP MODULE
 // ═══════════════════════════════════════════════════════════════════
@@ -271,8 +213,7 @@ function renderIncidents(data) {
     data.forEach(d => {
         const c = crimeColor(d.crime_type);
         L.circleMarker([d.latitude, d.longitude], {
-            radius: 3, fillColor: c, fillOpacity: 0.55,
-            color: c, weight: 0.5, opacity: 0.7
+            radius: 3, fillColor: c, fillOpacity: 0.55, color: c, weight: 0.5, opacity: 0.7
         }).bindPopup(`
             <div style="font-size:12px;min-width:150px">
                 <div style="font-family:Inter;font-size:16px;color:${c};letter-spacing:1px">${d.crime_type}</div>
@@ -289,25 +230,13 @@ function renderHotspots(hotspots) {
     state.hotspotLayer.clearLayers();
     const list = $('#hotspotList');
     if (!list) return;
-    if (!hotspots || !hotspots.length) {
-        showEmpty(list, 'No hotspots for the current filters');
-        return;
-    }
+    if (!hotspots || !hotspots.length) { showEmpty(list, 'No hotspots for the current filters'); return; }
     list.innerHTML = hotspots.slice(0,10).map((h,i) => {
         const icon = L.divIcon({
-            className: '',
-            html: '<div class="hotspot-pulse" style="width:40px;height:40px;position:relative"><div class="ring"></div><div class="ring"></div><div class="hotspot-dot" style="position:absolute;top:15px;left:15px"></div></div>',
-            iconSize: [40,40], iconAnchor: [20,20]
+            className: '', html: '<div class="hotspot-pulse" style="width:40px;height:40px;position:relative"><div class="ring"></div><div class="ring"></div><div class="hotspot-dot" style="position:absolute;top:15px;left:15px"></div></div>', iconSize: [40,40], iconAnchor: [20,20]
         });
-        L.marker([h.lat, h.lng], {icon}).bindPopup(`
-            <div style="font-size:12px"><div style="font-family:Inter;font-size:16px;color:#8052ff">HOTSPOT #${i+1}</div>
-            <div style="color:#aaa;margin-top:4px">${h.top_crime}: ${h.top_crime_count} cases</div>
-            <div style="color:#888">Peak: ${h.peak_hour}:00 | Avg Sev: ${h.avg_severity}</div></div>
-        `).addTo(state.hotspotLayer);
-        L.circle([h.lat, h.lng], {
-            radius: h.radius*10, fillColor:'#8052ff', fillOpacity:0.05,
-            color:'#8052ff', weight:1, opacity:0.2
-        }).addTo(state.hotspotLayer);
+        L.marker([h.lat, h.lng], {icon}).bindPopup(`<div style="font-size:12px"><div style="font-family:Inter;font-size:16px;color:#8052ff">HOTSPOT #${i+1}</div><div style="color:#aaa;margin-top:4px">${h.top_crime}: ${h.top_crime_count} cases</div><div style="color:#888">Peak: ${h.peak_hour}:00 | Avg Sev: ${h.avg_severity}</div></div>`).addTo(state.hotspotLayer);
+        L.circle([h.lat, h.lng], { radius: h.radius*10, fillColor:'#8052ff', fillOpacity:0.05, color:'#8052ff', weight:1, opacity:0.2 }).addTo(state.hotspotLayer);
         const cls = h.avg_severity>=7?'risk-high':h.avg_severity>=5?'risk-medium':'risk-low';
         return `<div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded p-2 hover:border-accent/30 cursor-pointer transition" onclick="MapModule.flyToHotspot(${h.lat},${h.lng})">
             <div class="flex items-center justify-between mb-1"><span class="font-display text-accent text-sm">#${i+1}</span><span class="text-[10px] px-1.5 py-0.5 rounded ${cls}">${h.avg_severity}/10</span></div>
@@ -322,34 +251,18 @@ function renderRedZones(alerts, distCoords) {
     alerts.forEach(a => {
         const dc = distCoords.find(d => d.n === a.district);
         if (!dc) return;
-        const icon = L.divIcon({
-            className: '',
-            html: '<div class="redzone-pulse" style="width:50px;height:50px;position:relative"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="redzone-dot" style="position:absolute;top:19px;left:19px"></div></div>',
-            iconSize: [50,50], iconAnchor: [25,25]
-        });
-        L.marker([dc.lat, dc.lng], {icon}).bindPopup(`
-            <div style="font-size:12px"><div style="font-family:Inter;font-size:16px;color:#FF2D2D;letter-spacing:1px">TREND ALERT</div>
-            <div style="color:#ff6666;margin-top:4px">${a.crime_type} in ${a.district}</div>
-            <div style="color:#aaa">+${a.increase_pct}% increase</div>
-            <div style="color:#888">${a.recent} recent vs ${a.previous} prior</div></div>
-        `).addTo(state.redzoneLayer);
+        const icon = L.divIcon({ className: '', html: '<div class="redzone-pulse" style="width:50px;height:50px;position:relative"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="redzone-dot" style="position:absolute;top:19px;left:19px"></div></div>', iconSize: [50,50], iconAnchor: [25,25] });
+        L.marker([dc.lat, dc.lng], {icon}).bindPopup(`<div style="font-size:12px"><div style="font-family:Inter;font-size:16px;color:#FF2D2D;letter-spacing:1px">TREND ALERT</div><div style="color:#ff6666;margin-top:4px">${a.crime_type} in ${a.district}</div><div style="color:#aaa">+${a.increase_pct}% increase</div><div style="color:#888">${a.recent} recent vs ${a.previous} prior</div></div>`).addTo(state.redzoneLayer);
     });
 }
 
 const MapModule = {
-    flyToHotspot(lat, lng) {
-        if (state.map) state.map.flyTo([lat, lng], 11, {duration: 1});
-    },
-
+    flyToHotspot(lat, lng) { if (state.map) state.map.flyTo([lat, lng], 11, {duration: 1}); },
     async loadBoundaries() {
-        const loader = $('#boundaryLoader');
-        if (loader) loader.style.display = 'flex';
+        const loader = $('#boundaryLoader'); if (loader) loader.style.display = 'flex';
         const data = await api('/geo/boundaries');
         if (loader) loader.style.display = 'none';
-        if (!data || !data.features || !data.features.length) {
-            toast('Overpass: Boundaries unavailable (retry on SYNC)', 'error');
-            return;
-        }
+        if (!data || !data.features || !data.features.length) { toast('Overpass: Boundaries unavailable', 'error'); return; }
         const counts = Object.values(state.districtCrimeMap).map(d=>d.count);
         const maxC = Math.max(...counts, 1);
         function getColor(name) {
@@ -367,34 +280,26 @@ const MapModule = {
             onEachFeature: (f, layer) => {
                 const name=f.properties.name, norm=f.properties.name_normalized||name;
                 const info=state.districtCrimeMap[norm]||{count:0,avg_sev:0};
-                layer.bindPopup(`<div style="font-size:12px;min-width:200px"><div style="font-family:Inter;font-size:18px;color:#8052ff;letter-spacing:1px">${name}</div><div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:4px"><div style="background:#1a1a1a;padding:4px 8px;border-radius:3px"><div style="font-size:9px;color:#666;text-transform:uppercase">Incidents</div><div style="font-family:Inter;font-size:20px;color:#fff">${info.count}</div></div><div style="background:#1a1a1a;padding:4px 8px;border-radius:3px"><div style="font-size:9px;color:#666;text-transform:uppercase">Avg Severity</div><div style="font-family:Inter;font-size:20px;color:${info.avg_sev>=7?'#FF2D2D':info.avg_sev>=5?'#8052ff':'#15846e'}">${info.avg_sev}</div></div></div><div style="margin-top:6px;font-size:9px;color:#444">Source: OpenStreetMap Overpass API</div></div>`);
+                layer.bindPopup(`<div style="font-size:12px;min-width:200px"><div style="font-family:Inter;font-size:18px;color:#8052ff;letter-spacing:1px">${name}</div><div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:4px"><div style="background:#1a1a1a;padding:4px 8px;border-radius:3px"><div style="font-size:9px;color:#666;text-transform:uppercase">Incidents</div><div style="font-family:Inter;font-size:20px;color:#fff">${info.count}</div></div><div style="background:#1a1a1a;padding:4px 8px;border-radius:3px"><div style="font-size:9px;color:#666;text-transform:uppercase">Avg Severity</div><div style="font-family:Inter;font-size:20px;color:${info.avg_sev>=7?'#FF2D2D':info.avg_sev>=5?'#8052ff':'#15846e'}">${info.avg_sev}</div></div></div></div>`);
                 layer.on('mouseover', function(){this.setStyle({weight:3,fillOpacity:0.7})});
                 layer.on('mouseout', function(){state.boundaryLayer.resetStyle(this)});
-                // Click to drill down if in advanced mode
-                if (state.advancedMode) {
-                    layer.on('click', function(){ AdvViz.drillIntoDistrict(norm); });
-                }
+                if (state.advancedMode) { layer.on('click', function(){ AdvViz.drillIntoDistrict(norm); }); }
             }
         }).addTo(state.map);
-        const legend = $('#districtLegend');
-        if (legend) legend.classList.remove('hidden');
+        const legend = $('#districtLegend'); if (legend) legend.classList.remove('hidden');
         toast('Overpass: '+data.features.length+' real district boundaries loaded','success');
     },
-
     async loadStations() {
         const data = await api('/geo/stations');
         if (!data || !data.length) return;
         if (state.stationLayer) state.map.removeLayer(state.stationLayer);
         state.stationLayer = L.layerGroup();
         const icon = L.divIcon({className:'',html:'<div class="station-marker-icon"></div>',iconSize:[10,10],iconAnchor:[5,5]});
-        data.forEach(s => {
-            L.marker([s.lat, s.lng], {icon}).bindPopup(`<div style="font-size:11px"><div style="font-family:Inter;font-size:14px;color:#4488ff"><i class="fa-solid fa-shield-halved" style="margin-right:4px"></i>POLICE STATION</div><div style="color:#ddd;margin-top:4px">${s.name}</div>${s.addr?'<div style="color:#666;font-size:10px">'+s.addr+'</div>':''}<div style="color:#444;font-size:9px;margin-top:4px">Source: OpenStreetMap</div></div>`).addTo(state.stationLayer);
-        });
+        data.forEach(s => { L.marker([s.lat, s.lng], {icon}).bindPopup(`<div style="font-size:11px"><div style="font-family:Inter;font-size:14px;color:#4488ff"><i class="fa-solid fa-shield-halved" style="margin-right:4px"></i>POLICE STATION</div><div style="color:#ddd;margin-top:4px">${s.name}</div></div>`).addTo(state.stationLayer); });
         state.stationLayer.addTo(state.map);
         toast('Overpass: '+data.length+' police station POIs loaded','success');
     }
 };
-
 
 // ═══════════════════════════════════════════════════════════════════
 // SECTION 5: CHART MODULE
@@ -440,12 +345,8 @@ function applyRangeFilter(data) {
     const maxDate = new Date(Math.max(...dates.map(d=>d.getTime())));
     const start = new Date(maxDate);
     start.setDate(start.getDate() - state.selectedRangeDays + 1);
-    return data.filter(i => {
-        const d = new Date(i.date);
-        return !Number.isNaN(d.getTime()) && d >= start && d <= maxDate;
-    });
+    return data.filter(i => { const d = new Date(i.date); return !Number.isNaN(d.getTime()) && d >= start && d <= maxDate; });
 }
-
 
 // ═══════════════════════════════════════════════════════════════════
 // SECTION 6: NETWORK MODULE
@@ -460,14 +361,13 @@ function renderNetwork(d) {
     state.network = new vis.Network($('#networkGraph'),{nodes,edges},{physics:{stabilization:{iterations:150},barnesHut:{gravitationalConstant:-3000,springLength:80,springConstant:0.04}},interaction:{hover:true,tooltipDelay:100},nodes:{scaling:{min:4,max:30}}});
 }
 
-
 // ═══════════════════════════════════════════════════════════════════
 // SECTION 7: DATA LOADERS
 // ═══════════════════════════════════════════════════════════════════
 
 async function loadMapData() {
-    const district = $('#filterDistrict').value;
-    const crime = $('#filterCrime').value;
+    const district = $('#filterDistrict')?.value || '';
+    const crime = $('#filterCrime')?.value || '';
     let url = '/incidents/map?limit=2000';
     if (district) url += '&district='+encodeURIComponent(district);
     if (crime) url += '&crime_type='+encodeURIComponent(crime);
@@ -479,10 +379,7 @@ async function loadMapData() {
     data = applyRangeFilter(data);
     state.allIncidents = data;
 
-    // Apply time filter if active
-    if (state.selectedHour >= 0) {
-        data = data.filter(d => d.hour === state.selectedHour);
-    }
+    if (state.selectedHour >= 0) { data = data.filter(d => d.hour === state.selectedHour); }
     renderIncidents(data);
 
     let hotspots = await api('/hotspots');
@@ -526,24 +423,8 @@ async function loadAlerts() {
     const msgs = d.map(a=>`<span class="${a.severity==='critical'?'text-danger':a.severity==='high'?'text-[#ff9944]':'text-warning'} mx-6"><i class="fa-solid fa-triangle-exclamation mr-1"></i>${a.crime_type} spike in ${a.district}: +${a.increase_pct}% (${a.recent} vs ${a.previous})</span>`);
     $('#alertTicker').innerHTML = msgs.join('')+msgs.join('');
 
-    // Show red zones on map if in advanced mode
     if (state.advancedMode) {
-        const distCoords = [
-            {n:"Bangalore Urban",lat:12.97,lng:77.59},{n:"Mysore",lat:12.30,lng:76.64},
-            {n:"Hubli-Dharwad",lat:15.36,lng:75.12},{n:"Mangalore",lat:12.91,lng:74.86},
-            {n:"Belgaum",lat:15.85,lng:74.50},{n:"Gulbarga",lat:17.33,lng:76.83},
-            {n:"Davangere",lat:14.46,lng:75.93},{n:"Bellary",lat:15.14,lng:76.92},
-            {n:"Shimoga",lat:13.93,lng:75.57},{n:"Tumkur",lat:13.34,lng:77.10},
-            {n:"Raichur",lat:16.21,lng:77.35},{n:"Hassan",lat:13.01,lng:76.10},
-            {n:"Udupi",lat:13.34,lng:74.74},{n:"Chitradurga",lat:14.23,lng:76.39},
-            {n:"Mandya",lat:12.52,lng:76.90},{n:"Bidar",lat:17.91,lng:77.52},
-            {n:"Koppal",lat:15.35,lng:76.15},{n:"Gadag",lat:15.42,lng:75.63},
-            {n:"Haveri",lat:14.79,lng:75.40},{n:"Bagalkot",lat:16.19,lng:75.69},
-            {n:"Chamarajanagar",lat:11.92,lng:76.94},{n:"Kodagu",lat:12.34,lng:75.81},
-            {n:"Ramanagara",lat:12.72,lng:77.28},{n:"Yadgir",lat:16.77,lng:77.13},
-            {n:"Bangalore Rural",lat:13.0,lng:77.5},{n:"Dakshina Kannada",lat:12.85,lng:75.0},
-            {n:"Uttara Kannada",lat:14.55,lng:74.50}
-        ];
+        const distCoords = [ {n:"Bangalore Urban",lat:12.97,lng:77.59},{n:"Mysore",lat:12.30,lng:76.64},{n:"Hubli-Dharwad",lat:15.36,lng:75.12},{n:"Mangalore",lat:12.91,lng:74.86},{n:"Belgaum",lat:15.85,lng:74.50},{n:"Gulbarga",lat:17.33,lng:76.83},{n:"Davangere",lat:14.46,lng:75.93},{n:"Bellary",lat:15.14,lng:76.92},{n:"Shimoga",lat:13.93,lng:75.57},{n:"Tumkur",lat:13.34,lng:77.10},{n:"Raichur",lat:16.21,lng:77.35},{n:"Hassan",lat:13.01,lng:76.10},{n:"Udupi",lat:13.34,lng:74.74},{n:"Chitradurga",lat:14.23,lng:76.39},{n:"Mandya",lat:12.52,lng:76.90},{n:"Bidar",lat:17.91,lng:77.52},{n:"Koppal",lat:15.35,lng:76.15},{n:"Gadag",lat:15.42,lng:75.63},{n:"Haveri",lat:14.79,lng:75.40},{n:"Bagalkot",lat:16.19,lng:75.69},{n:"Chamarajanagar",lat:11.92,lng:76.94},{n:"Kodagu",lat:12.34,lng:75.81},{n:"Ramanagara",lat:12.72,lng:77.28},{n:"Yadgir",lat:16.77,lng:77.13},{n:"Bangalore Rural",lat:13.0,lng:77.5},{n:"Dakshina Kannada",lat:12.85,lng:75.0},{n:"Uttara Kannada",lat:14.55,lng:74.50} ];
         renderRedZones(d, distCoords);
     }
 }
@@ -580,7 +461,6 @@ async function loadFilters() {
     tList.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;tSel.appendChild(o)});
 }
 
-
 // ═══════════════════════════════════════════════════════════════════
 // SECTION 8: ADVANCED VISUALIZATION
 // ═══════════════════════════════════════════════════════════════════
@@ -588,39 +468,18 @@ async function loadFilters() {
 const AdvViz = {
     toggle() {
         state.advancedMode = !state.advancedMode;
-        const panel = $('#advPanel');
-        const slider = $('#timeSlider');
+        const panel = $('#advPanel'); const slider = $('#timeSlider');
         if (state.advancedMode) {
-            panel.classList.add('open');
-            slider.classList.add('visible');
+            panel?.classList.add('open'); slider?.classList.add('visible');
             this.populateDistrictList();
-            // Re-show red zones
             if (state.trendAlerts.length) {
-                const distCoords = [
-                    {n:"Bangalore Urban",lat:12.97,lng:77.59},{n:"Mysore",lat:12.30,lng:76.64},
-                    {n:"Hubli-Dharwad",lat:15.36,lng:75.12},{n:"Mangalore",lat:12.91,lng:74.86},
-                    {n:"Belgaum",lat:15.85,lng:74.50},{n:"Gulbarga",lat:17.33,lng:76.83},
-                    {n:"Davangere",lat:14.46,lng:75.93},{n:"Bellary",lat:15.14,lng:76.92},
-                    {n:"Shimoga",lat:13.93,lng:75.57},{n:"Tumkur",lat:13.34,lng:77.10},
-                    {n:"Raichur",lat:16.21,lng:77.35},{n:"Hassan",lat:13.01,lng:76.10},
-                    {n:"Udupi",lat:13.34,lng:74.74},{n:"Chitradurga",lat:14.23,lng:76.39},
-                    {n:"Mandya",lat:12.52,lng:76.90},{n:"Bidar",lat:17.91,lng:77.52},
-                    {n:"Koppal",lat:15.35,lng:76.15},{n:"Gadag",lat:15.42,lng:75.63},
-                    {n:"Haveri",lat:14.79,lng:75.40},{n:"Bagalkot",lat:16.19,lng:75.69},
-                    {n:"Chamarajanagar",lat:11.92,lng:76.94},{n:"Kodagu",lat:12.34,lng:75.81},
-                    {n:"Ramanagara",lat:12.72,lng:77.28},{n:"Yadgir",lat:16.77,lng:77.13},
-                    {n:"Bangalore Rural",lat:13.0,lng:77.5},{n:"Dakshina Kannada",lat:12.85,lng:75.0},
-                    {n:"Uttara Kannada",lat:14.55,lng:74.50}
-                ];
+                const distCoords = [ {n:"Bangalore Urban",lat:12.97,lng:77.59},{n:"Mysore",lat:12.30,lng:76.64},{n:"Hubli-Dharwad",lat:15.36,lng:75.12},{n:"Mangalore",lat:12.91,lng:74.86},{n:"Belgaum",lat:15.85,lng:74.50},{n:"Gulbarga",lat:17.33,lng:76.83},{n:"Davangere",lat:14.46,lng:75.93},{n:"Bellary",lat:15.14,lng:76.92},{n:"Shimoga",lat:13.93,lng:75.57},{n:"Tumkur",lat:13.34,lng:77.10},{n:"Raichur",lat:16.21,lng:77.35},{n:"Hassan",lat:13.01,lng:76.10},{n:"Udupi",lat:13.34,lng:74.74},{n:"Chitradurga",lat:14.23,lng:76.39},{n:"Mandya",lat:12.52,lng:76.90},{n:"Bidar",lat:17.91,lng:77.52},{n:"Koppal",lat:15.35,lng:76.15},{n:"Gadag",lat:15.42,lng:75.63},{n:"Haveri",lat:14.79,lng:75.40},{n:"Bagalkot",lat:16.19,lng:75.69},{n:"Chamarajanagar",lat:11.92,lng:76.94},{n:"Kodagu",lat:12.34,lng:75.81},{n:"Ramanagara",lat:12.72,lng:77.28},{n:"Yadgir",lat:16.77,lng:77.13},{n:"Bangalore Rural",lat:13.0,lng:77.5},{n:"Dakshina Kannada",lat:12.85,lng:75.0},{n:"Uttara Kannada",lat:14.55,lng:74.50} ];
                 renderRedZones(state.trendAlerts, distCoords);
             }
             toast('Advanced Visualization enabled','success');
         } else {
-            panel.classList.remove('open');
-            slider.classList.remove('visible');
-            state.redzoneLayer.clearLayers();
-            this.resetDrillDown();
-            // Reset time filter
+            panel?.classList.remove('open'); slider?.classList.remove('visible');
+            state.redzoneLayer.clearLayers(); this.resetDrillDown();
             state.selectedHour = -1;
             $('#hourSlider').value = -1;
             $('#hourLabel').textContent = 'All Hours';
@@ -628,163 +487,85 @@ const AdvViz = {
             renderIncidents(state.allIncidents);
             toast('Advanced Visualization disabled','info');
         }
-        // Invalidate map size after panel animation
         setTimeout(()=>{ if(state.map) state.map.invalidateSize(); }, 400);
     },
-
     populateDistrictList() {
-        const list = $('#drillDistrictList');
-        if (!list) return;
+        const list = $('#drillDistrictList'); if (!list) return;
         const counts = {};
         state.allIncidents.forEach(i=>{counts[i.district]=(counts[i.district]||0)+1;});
         const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-        list.innerHTML = sorted.map(([name,count])=>`
-            <div class="drill-district-item" onclick="AdvViz.drillIntoDistrict('${name.replace(/'/g,"\\'")}')">
-                <span class="text-silver">${name}</span>
-                <span class="count">${count}</span>
-            </div>
-        `).join('');
+        list.innerHTML = sorted.map(([name,count])=>`<div class="drill-district-item" onclick="AdvViz.drillIntoDistrict('${name.replace(/'/g,"\\'")}')"><span class="text-silver">${name}</span><span class="count">${count}</span></div>`).join('');
     },
-
     async drillIntoDistrict(districtName) {
         state.drilledDistrict = districtName;
-        // Fetch drill-down data
         let dd = await api('/incidents/district/'+encodeURIComponent(districtName));
         if (!dd) dd = FALLBACK.drillDown[districtName];
         if (!dd) { toast('No drill-down data for '+districtName,'error'); return; }
-
-        // Hide district list, show drill view
         $('#drillDistrictList').style.display = 'none';
         $('#drillState').style.display = 'block';
         $('#drillDistrictName').textContent = districtName.toUpperCase();
-
-        // Stats
-        $('#drillStats').innerHTML = `
-            <div class="drill-stat-grid">
-                <div class="drill-stat-box"><div class="label">Incidents</div><div class="value">${dd.total}</div></div>
-                <div class="drill-stat-box"><div class="label">Avg Severity</div><div class="value" style="color:${dd.avg_sev>=7?'#FF2D2D':dd.avg_sev>=5?'#8052ff':'#15846e'}">${dd.avg_sev}</div></div>
-            </div>`;
-
-        // Station list
+        $('#drillStats').innerHTML = `<div class="drill-stat-grid"><div class="drill-stat-box"><div class="label">Incidents</div><div class="value">${dd.total}</div></div><div class="drill-stat-box"><div class="label">Avg Severity</div><div class="value" style="color:${dd.avg_sev>=7?'#FF2D2D':dd.avg_sev>=5?'#8052ff':'#15846e'}">${dd.avg_sev}</div></div></div>`;
         const maxS = Math.max(...dd.stations.map(s=>s.count), 1);
-        $('#drillStations').innerHTML = dd.stations.slice(0,8).map(s=>`
-            <div class="drill-list-item">
-                <span class="name">${s.station}</span>
-                <span class="val">${s.count}</span>
-            </div>
-            <div class="drill-bar"><div class="drill-bar-fill" style="width:${(s.count/maxS*100).toFixed(0)}%"></div></div>
-        `).join('');
-
-        // Crime type mini chart
+        $('#drillStations').innerHTML = dd.stations.slice(0,8).map(s=>`<div class="drill-list-item"><span class="name">${s.station}</span><span class="val">${s.count}</span></div><div class="drill-bar"><div class="drill-bar-fill" style="width:${(s.count/maxS*100).toFixed(0)}%"></div></div>`).join('');
         if (state.charts.drillCrime) state.charts.drillCrime.destroy();
         const topTypes = dd.types.slice(0,6);
-        state.charts.drillCrime = new Chart($('#drillCrimeChart'),{
-            type:'bar',
-            data:{labels:topTypes.map(t=>t.type), datasets:[{data:topTypes.map(t=>t.count), backgroundColor:topTypes.map(t=>CRIME_COLORS[t.type]||'#666'), borderRadius:2, borderSkipped:false}]},
-            options:{indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true,grid:{color:'rgba(255,255,255,0.06)'},ticks:{font:{size:9}}},y:{grid:{display:false},ticks:{font:{size:9}}}}}
-        });
-
-        // Hourly mini chart
+        state.charts.drillCrime = new Chart($('#drillCrimeChart'),{type:'bar',data:{labels:topTypes.map(t=>t.type), datasets:[{data:topTypes.map(t=>t.count), backgroundColor:topTypes.map(t=>CRIME_COLORS[t.type]||'#666'), borderRadius:2, borderSkipped:false}]},options:{indexAxis:'y', responsive:true, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true,grid:{color:'rgba(255,255,255,0.06)'},ticks:{font:{size:9}}},y:{grid:{display:false},ticks:{font:{size:9}}}}}});
         if (state.charts.drillTime) state.charts.drillTime.destroy();
-        state.charts.drillTime = new Chart($('#drillTimeChart'),{
-            type:'bar',
-            data:{labels:dd.hours.map(h=>h.hour+':00'), datasets:[{data:dd.hours.map(h=>h.count), backgroundColor:dd.hours.map(h=>h.count>=maxS*0.7?'#8052ff':h.count>=maxS*0.4?'rgba(128,82,255,0.5)':'rgba(128,82,255,0.2)'), borderRadius:1, borderSkipped:false}]},
-            options:{responsive:true, plugins:{legend:{display:false}}, scales:{x:{ticks:{font:{size:7},maxRotation:0}},y:{beginAtZero:true,grid:{color:'rgba(255,255,255,0.06)'},ticks:{font:{size:8}}}}}
-        });
-
-        // Map: zoom to district and show station markers
+        state.charts.drillTime = new Chart($('#drillTimeChart'),{type:'bar',data:{labels:dd.hours.map(h=>h.hour+':00'), datasets:[{data:dd.hours.map(h=>h.count), backgroundColor:dd.hours.map(h=>h.count>=maxS*0.7?'#8052ff':h.count>=maxS*0.4?'rgba(128,82,255,0.5)':'rgba(128,82,255,0.2)'), borderRadius:1, borderSkipped:false}]},options:{responsive:true, plugins:{legend:{display:false}}, scales:{x:{ticks:{font:{size:7},maxRotation:0}},y:{beginAtZero:true,grid:{color:'rgba(255,255,255,0.06)'},ticks:{font:{size:8}}}}}});
         const districtInc = state.allIncidents.filter(i=>i.district===districtName);
         if (districtInc.length) {
             const lat = districtInc.reduce((a,i)=>a+i.latitude,0)/districtInc.length;
             const lng = districtInc.reduce((a,i)=>a+i.longitude,0)/districtInc.length;
             state.map.flyTo([lat, lng], 11, {duration: 1.2});
-
-            // Hide state-level, show district-level
-            state.incidentLayer.clearLayers();
-            state.hotspotLayer.clearLayers();
-
-            // Show district incidents
+            state.incidentLayer.clearLayers(); state.hotspotLayer.clearLayers();
             let filtered = districtInc;
             if (state.selectedHour >= 0) filtered = filtered.filter(i=>i.hour===state.selectedHour);
             renderIncidents(filtered);
-
-            // Show station markers
             state.drilldownLayer.clearLayers();
             dd.stations.forEach(s => {
                 const sInc = districtInc.filter(i=>i.station===s.station);
                 let sLat, sLng;
-                if (sInc.length) {
-                    sLat = sInc.reduce((a,i)=>a+i.latitude,0)/sInc.length;
-                    sLng = sInc.reduce((a,i)=>a+i.longitude,0)/sInc.length;
-                } else {
-                    sLat = lat + (Math.random()-0.5)*0.1;
-                    sLng = lng + (Math.random()-0.5)*0.1;
-                }
+                if (sInc.length) { sLat = sInc.reduce((a,i)=>a+i.latitude,0)/sInc.length; sLng = sInc.reduce((a,i)=>a+i.longitude,0)/sInc.length; } 
+                else { sLat = lat + (Math.random()-0.5)*0.1; sLng = lng + (Math.random()-0.5)*0.1; }
                 const icon = L.divIcon({className:'',html:'<div class="station-marker-icon"></div>',iconSize:[10,10],iconAnchor:[5,5]});
-                L.marker([sLat, sLng], {icon}).bindPopup(`
-                    <div style="font-size:11px"><div style="font-family:Inter;font-size:14px;color:#4aa8ff">${s.station}</div>
-                    <div style="color:#ddd;margin-top:4px">${s.count} incidents</div>
-                    <div style="color:#888">Avg Severity: ${s.avg_sev}</div></div>
-                `).addTo(state.drilldownLayer);
+                L.marker([sLat, sLng], {icon}).bindPopup(`<div style="font-size:11px"><div style="font-family:Inter;font-size:14px;color:#4aa8ff">${s.station}</div><div style="color:#ddd;margin-top:4px">${s.count} incidents</div></div>`).addTo(state.drilldownLayer);
             });
             state.drilldownLayer.addTo(state.map);
-
-            // Draw a circle to indicate district area
-            L.circle([lat, lng], {
-                radius: 15000, fillColor:'#8052ff', fillOpacity:0.03,
-                color:'#8052ff', weight:1, opacity:0.15, dashArray:'5,5'
-            }).addTo(state.drilldownLayer);
+            L.circle([lat, lng], { radius: 15000, fillColor:'#8052ff', fillOpacity:0.03, color:'#8052ff', weight:1, opacity:0.15, dashArray:'5,5' }).addTo(state.drilldownLayer);
         }
-
         setTimeout(()=>{ if(state.map) state.map.invalidateSize(); }, 500);
         toast('Drilled into: '+districtName,'info');
     },
-
     resetDrillDown() {
         state.drilledDistrict = null;
         state.drilldownLayer.clearLayers();
         state.map.removeLayer(state.drilldownLayer);
         $('#drillDistrictList').style.display = 'block';
         $('#drillState').style.display = 'none';
-        // Restore state view
         state.map.flyTo([14.5, 76.5], 7, {duration: 1});
-        // Re-render all incidents
         let data = state.allIncidents;
         if (state.selectedHour >= 0) data = data.filter(d=>d.hour===state.selectedHour);
         renderIncidents(data);
         renderHotspots(state.allHotspots);
     },
-
     setTimeFilter(hour) {
         state.selectedHour = hour;
         const label = $('#hourLabel');
         label.textContent = hour >= 0 ? hour+':00 — '+(hour+1)+':00' : 'All Hours';
-
-        // Filter incidents on map
         let data = state.allIncidents;
         if (hour >= 0) data = data.filter(d=>d.hour===hour);
-
-        if (state.drilledDistrict) {
-            data = data.filter(d=>d.district===state.drilledDistrict);
-        }
+        if (state.drilledDistrict) { data = data.filter(d=>d.district===state.drilledDistrict); }
         renderIncidents(data);
-
-        // Update active button states
         $$('.time-slider-bar .btn-sm').forEach(b=>b.classList.remove('active'));
-        if (hour >= 0) {
-            const btn = $(`[data-hour="${hour}"]`);
-            if (btn) btn.classList.add('active');
-        }
+        if (hour >= 0) { const btn = $(`[data-hour="${hour}"]`); if (btn) btn.classList.add('active'); }
     }
 };
 
-
 // ═══════════════════════════════════════════════════════════════════
-// SECTION 9: UI INTERACTIONS
+// SECTION 9: UI INTERACTIONS (FIXED - NULL CHECKS ADDED)
 // ═══════════════════════════════════════════════════════════════════
 
 function setupUI() {
-    // Sidebar navigation
     $$('.sidebar-btn[data-section]').forEach(btn=>{
         btn.addEventListener('click', ()=>{
             $$('.sidebar-btn').forEach(b=>{b.classList.remove('active');b.classList.add('text-silver')});
@@ -794,7 +575,6 @@ function setupUI() {
         });
     });
 
-    // Hamburger menu
     const hamburger = $('#hamburger');
     const dropdown = $('#hamburgerDropdown');
     if (hamburger && dropdown) {
@@ -809,7 +589,6 @@ function setupUI() {
         });
     }
 
-    // Advanced viz button in hamburger
     const advBtn = $('#btnAdvViz');
     if (advBtn) advBtn.addEventListener('click', ()=>{
         $('#hamburgerDropdown').classList.remove('open');
@@ -827,20 +606,20 @@ function setupUI() {
         toast('Time filter reset', 'info');
     });
 
-    // Close adv panel
     const closeAdv = $('#closeAdvPanel');
     if (closeAdv) closeAdv.addEventListener('click', ()=> AdvViz.toggle());
 
-    // Back from drill-down
     const backDrill = $('#btnResetDrill');
     if (backDrill) backDrill.addEventListener('click', ()=> AdvViz.resetDrillDown());
 
-    // Filters
-    $('#filterDistrict').addEventListener('change', loadMapData);
-    $('#filterCrime').addEventListener('change', loadMapData);
+    const filterDistrict = $('#filterDistrict');
+    if (filterDistrict) filterDistrict.addEventListener('change', loadMapData);
+    
+    const filterCrime = $('#filterCrime');
+    if (filterCrime) filterCrime.addEventListener('change', loadMapData);
 
-    // Refresh
-    $('#btnRefresh').addEventListener('click', ()=>{
+    const btnRefresh = $('#btnRefresh');
+    if (btnRefresh) btnRefresh.addEventListener('click', ()=>{
         toast('Syncing all intelligence feeds...','info');
         loadAll();
     });
@@ -872,7 +651,6 @@ function setupUI() {
         });
     });
 
-    // Time slider
     const slider = $('#hourSlider');
     if (slider) {
         slider.addEventListener('input', (e)=>{
@@ -881,7 +659,6 @@ function setupUI() {
         });
     }
 
-    // Time quick-select buttons
     $$('.time-preset').forEach(btn=>{
         btn.addEventListener('click', ()=>{
             const h = parseInt(btn.dataset.hour);
@@ -890,21 +667,26 @@ function setupUI() {
         });
     });
 
-    // Nominatim search
     let searchTimeout;
-    $('#searchInput').addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        const q = this.value.trim();
-        const box = $('#searchResults');
-        if (q.length < 3) { box.classList.add('hidden'); return; }
-        searchTimeout = setTimeout(async ()=>{
-            const results = await api('/geo/search?q='+encodeURIComponent(q));
-            if (!results || !results.length) { box.classList.add('hidden'); return; }
-            box.innerHTML = results.map(r=>`<div onclick="flyToSearch(${r.lat},${r.lng},'${r.name.replace(/'/g,"\\'")}')">${r.name} <span style="color:#444">— ${r.type}</span></div>`).join('');
-            box.classList.remove('hidden');
-        }, 400);
-    });
-    $('#searchInput').addEventListener('blur', ()=>{ setTimeout(()=>$('#searchResults').classList.add('hidden'), 200); });
+    const searchInput = $('#searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const q = this.value.trim();
+            const box = $('#searchResults');
+            if (!box) return;
+            if (q.length < 3) { box.classList.add('hidden'); return; }
+            searchTimeout = setTimeout(async ()=>{
+                const results = await api('/geo/search?q='+encodeURIComponent(q));
+                if (!results || !results.length) { box.classList.add('hidden'); return; }
+                box.innerHTML = results.map(r=>`<div onclick="flyToSearch(${r.lat},${r.lng},'${r.name.replace(/'/g,"\\'")}')">${r.name} <span style="color:#444">— ${r.type}</span></div>`).join('');
+                box.classList.remove('hidden');
+            }, 400);
+        });
+        searchInput.addEventListener('blur', ()=>{ 
+            setTimeout(()=>{ const box = $('#searchResults'); if(box) box.classList.add('hidden'); }, 200); 
+        });
+    }
 
     if (hamburger) hamburger.addEventListener('keydown', (e)=>{
         if (e.key === 'Enter' || e.key === ' ') {
@@ -912,6 +694,27 @@ function setupUI() {
             hamburger.click();
         }
     });
+
+    // Draggable Bottom Drawer
+    const drawer = $('#bottomDrawer');
+    const handle = $('#drawerHandle');
+    if (drawer && handle) {
+        let isDragging = false, startY, startHeight;
+        handle.style.cursor = 'ns-resize';
+        handle.addEventListener('mousedown', (e) => {
+            isDragging = true; startY = e.clientY; startHeight = drawer.offsetHeight;
+            document.body.style.cursor = 'ns-resize';
+            document.body.style.userSelect = 'none';
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const newHeight = startHeight - (e.clientY - startY);
+            if (newHeight > 150 && newHeight < window.innerHeight - 150) drawer.style.height = `${newHeight}px`;
+        });
+        document.addEventListener('mouseup', () => { 
+            if(isDragging) { isDragging = false; document.body.style.cursor = 'default'; document.body.style.userSelect = 'auto'; }
+        });
+    }
 }
 
 function flyToSearch(lat, lng, name) {
@@ -924,21 +727,15 @@ function flyToSearch(lat, lng, name) {
     setTimeout(()=>state.map.removeLayer(m), 15000);
 }
 
-
 // ═══════════════════════════════════════════════════════════════════
-// SECTION 10: INITIALIZATION — THE CRITICAL FIX
+// SECTION 10: INITIALIZATION
 // ═══════════════════════════════════════════════════════════════════
 
 async function loadAll() {
-    // 1. Stats & charts (needed first for districtCrimeMap)
     let stats = await api('/dashboard/stats');
     if (!stats) { stats = FALLBACK.stats; state.usingFallback = true; }
     renderStats(stats);
-
-    // 2. Load filters
     await loadFilters();
-
-    // 3. Parallel load everything else
     await Promise.all([
         loadMapData(),
         MapModule.loadBoundaries(),
@@ -951,8 +748,6 @@ async function loadAll() {
         loadWeather(),
         renderSocio(await api('/socio-economic') || FALLBACK.socio)
     ]);
-
-    // Show fallback badge if needed
     if (state.usingFallback) {
         const badge = $('#fallbackBadge');
         if (badge) badge.style.display = 'block';
@@ -963,32 +758,24 @@ async function loadAll() {
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{
-    // Setup all UI event listeners FIRST
     setupUI();
-
-    // Initialize map AFTER a frame to ensure DOM is laid out
     requestAnimationFrame(()=>{
         requestAnimationFrame(()=>{
             initMap();
-
-            // ALWAYS call loadAll — whether backend is up or not
-            // This is the critical fix: previously this was only called
-            // inside the .then() of fetch('/health'), so fallback
-            // data was never used when backend was down.
             loadAll();
         });
     });
 });
+
 /* ================================================================
-   PS2 additions: theme toggle, suspect CRUD, broken-button fixes
+   PS2 additions: theme toggle, suspect CRUD
    ================================================================ */
 (function () {
   "use strict";
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
-  /* ---------- 1. Theme toggle (persisted in localStorage) ---------- */
-  const themeBtn = $("#themeToggle");
+  const themeBtn = $(".theme-toggle-btn"); 
   const applyTheme = (t) => {
     document.body.classList.toggle("theme-light", t === "light");
     if (themeBtn) {
@@ -1004,7 +791,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
     applyTheme(next);
   });
 
-  /* ---------- 2. Suspect CRUD ---------- */
   const modal = $("#suspectModal");
   const openModal = () => { modal?.classList.remove("hidden"); loadSuspects(); };
   const closeModal = () => modal?.classList.add("hidden");
@@ -1054,7 +840,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
     }
   }
 
-  $("#sSave")?.addEventListener("click", async () => {
+  $("#sSave")?.addEventListener("click", async (e) => {
+    e.preventDefault();
     const name = $("#sName").value.trim();
     if (name.length < 2) { alert("Name is required (min 2 chars)"); return; }
     const payload = {
@@ -1091,109 +878,4 @@ document.addEventListener('DOMContentLoaded', ()=>{
     return String(s ?? "").replace(/[&<>"']/g, c =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
-
-  /* ---------- 3. Fix broken buttons ---------- */
-
-  // Hamburger dropdown toggle
-  const hb = $("#hamburger"), hbd = $("#hamburgerDropdown");
-  if (hb && hbd) {
-    hb.addEventListener("click", (e) => { e.stopPropagation(); hbd.classList.toggle("open"); });
-    document.addEventListener("click", (e) => {
-      if (!hb.contains(e.target) && !hbd.contains(e.target)) hbd.classList.remove("open");
-    });
-  }
-
-  // Advanced Visualization -> scroll to network lens
-  $("#btnAdvViz")?.addEventListener("click", () => {
-    hbd?.classList.remove("open");
-    document.getElementById("networkLens")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-
-  // Reset Time Filter
-  $("#btnResetTime")?.addEventListener("click", () => {
-    hbd?.classList.remove("open");
-    const slider = $("#hourSlider"), label = $("#hourLabel");
-    if (slider) { slider.value = -1; slider.dispatchEvent(new Event("input", { bubbles: true })); }
-    if (label) label.textContent = "All Hours";
-    $$(".time-preset").forEach(b => b.classList.toggle("active", b.dataset.hour === "-1"));
-  });
-
-  // Time preset chips
-  $$(".time-preset").forEach(btn => {
-    btn.addEventListener("click", () => {
-      $$(".time-preset").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      const h = btn.dataset.hour;
-      const slider = $("#hourSlider"), label = $("#hourLabel");
-      if (slider) { slider.value = h; slider.dispatchEvent(new Event("input", { bubbles: true })); }
-      if (label) label.textContent = h === "-1" ? "All Hours" : (String(h).padStart(2, "0") + ":00");
-    });
-  });
-
-  // Sync / Refresh button (soft reload of data)
-  $("#btnRefresh")?.addEventListener("click", () => {
-    const btn = $("#btnRefresh");
-    btn.classList.add("spinning");
-    // Try to trigger any existing refresh function used by the app
-    if (typeof window.loadDashboard === "function") window.loadDashboard();
-    if (typeof window.loadStats === "function") window.loadStats();
-    if (typeof window.refreshAll === "function") window.refreshAll();
-    setTimeout(() => { btn.classList.remove("spinning"); }, 900);
-  });
-
-  // Alert bell -> scroll to anomalies
-  $(".alert-button")?.addEventListener("click", () => {
-    document.getElementById("anomalyLens")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-
-  // Quick range chips (24h / 7d / 30d)
-  $$(".quick-range button").forEach(btn => {
-    btn.addEventListener("click", () => {
-      $$(".quick-range button").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-    });
-  });
-
-  // Saved-view chips (bookmark them, no-op filter for now)
-  $$(".saved-view button").forEach(btn => {
-    btn.addEventListener("click", () => {
-      $$(".saved-view button").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      // hook: could apply preset filters here
-    });
-  });
-
-  // Sidebar view buttons -> scroll to their section
-  $$(".sidebar-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      $$(".sidebar-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      const sec = btn.dataset.section;
-      const map = { overview: "sec-overview", map: "sec-map", network: "networkLens",
-                    predict: "sec-predict", offenders: "sec-offenders" };
-      const el = document.getElementById(map[sec] || sec);
-      el?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-
-  // Drawer tab anchors — smooth scroll
-  $$(".drawer-tabs a").forEach(a => {
-    a.addEventListener("click", (e) => {
-      const href = a.getAttribute("href");
-      if (href?.startsWith("#")) {
-        e.preventDefault();
-        document.querySelector(href)?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    });
-  });
-
-  // Layer toggles (visual feedback + custom event for map layers)
-  $$(".layer-toggle input[type=checkbox]").forEach(cb => {
-    cb.addEventListener("change", () => {
-      cb.closest(".layer-toggle")?.classList.toggle("off", !cb.checked);
-      document.dispatchEvent(new CustomEvent("kspLayerToggle", {
-        detail: { label: cb.closest(".layer-toggle")?.textContent.trim(), on: cb.checked }
-      }));
-    });
-  });
 })();
