@@ -43,10 +43,16 @@ button { cursor: pointer; }
 /* Topbar */
 .topbar {
     position: fixed; inset: 0 0 auto 0; z-index: 1000; height: 64px;
-    display: grid; grid-template-columns: minmax(280px, 380px) minmax(280px, 1fr) auto;
-    gap: 16px; align-items: center; padding: 10px 24px;
+    display: grid; grid-template-columns: minmax(240px, 340px) minmax(200px, 1fr) minmax(320px, auto);
+    gap: 16px; align-items: center; padding: 10px 20px;
     background: var(--bg-surface); border-bottom: 1px solid var(--border-hairline);
 }
+.topbar-left, .topbar-actions, .command-search { display: flex; align-items: center; min-width: 0; }
+.topbar-left { gap: 12px; min-width: 0; }
+.topbar-left > div { min-width: 0; }
+.topbar-left h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-left p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 .topbar-left, .topbar-actions, .command-search { display: flex; align-items: center; }
 .topbar-left { gap: 12px; min-width: 0; }
 .topbar-left h1 { margin: 0; font-size: 18px; font-weight: 600; }
