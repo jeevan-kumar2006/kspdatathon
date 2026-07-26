@@ -31,7 +31,6 @@
             <div class="weather-strip" id="weatherBar"><span class="weather-label">Weather:</span></div>
             <button class="alert-button" title="Active Alerts"><i class="fa-solid fa-bell"></i><span>0</span></button>
             <button class="sync-button" id="btnRefresh" title="Sync Data"><i class="fa-solid fa-rotate"></i> Sync</button>
-            <button class="theme-toggle-btn" title="Toggle Theme"></button>
         </div>
 
         <div id="hamburgerDropdown" class="hamburger-dropdown">
@@ -249,6 +248,11 @@
 
     <div class="fallback-badge" id="fallbackBadge" style="display: none;">FALLBACK MODE</div>
     <div class="toast" id="toast"></div>
+
+    <!-- Floating Theme Toggle -->
+    <button class="theme-toggle-fab" id="themeToggleBtn" title="Toggle Dark / Light Mode" aria-label="Toggle theme">
+        <i class="fa-solid fa-moon" id="themeIcon"></i>
+    </button>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

@@ -879,3 +879,23 @@ document.addEventListener('DOMContentLoaded', ()=>{
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 })();
+
+/* ── Floating Theme Toggle ─────────────────────────────────────────── */
+(function () {
+  const btn  = document.getElementById('themeToggleBtn');
+  const icon = document.getElementById('themeIcon');
+  if (!btn) return;
+
+  function applyTheme(light) {
+    document.body.classList.toggle('light-mode', light);
+    icon.className = light ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+    localStorage.setItem('ksp-theme', light ? 'light' : 'dark');
+  }
+
+  // Restore saved preference
+  applyTheme(localStorage.getItem('ksp-theme') === 'light');
+
+  btn.addEventListener('click', () => {
+    applyTheme(!document.body.classList.contains('light-mode'));
+  });
+})();

@@ -525,3 +525,56 @@ body.theme-light input, body.theme-light select, body.theme-light textarea {
   cursor: pointer; font-size: 12px;
 }
 .suspect-item .del-btn:hover { background: rgba(255,93,93,0.3); }
+
+/* ── Floating Theme Toggle FAB ─────────────────────────────────────── */
+.theme-toggle-fab {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 2000;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: none;
+    background: var(--bg-surface-raised);
+    color: var(--accent-info);
+    font-size: 20px;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 4px 24px rgba(0,0,0,.55), 0 0 0 1px var(--border-hairline);
+    cursor: pointer;
+    transition: transform .22s cubic-bezier(.34,1.56,.64,1),
+                background .22s ease,
+                box-shadow .22s ease;
+}
+.theme-toggle-fab:hover {
+    transform: scale(1.12) rotate(18deg);
+    background: var(--accent-info);
+    color: #fff;
+    box-shadow: 0 6px 32px rgba(76,141,255,.45), 0 0 0 1px var(--accent-info);
+}
+.theme-toggle-fab:active { transform: scale(.95); }
+
+/* ── Light Mode Overrides ──────────────────────────────────────────── */
+body.light-mode {
+    --bg-base: #F0F2F5;
+    --bg-surface: #FFFFFF;
+    --bg-surface-raised: #E8EBF0;
+    --border-hairline: #CBD2DC;
+    --text-primary: #1A202C;
+    --text-secondary: #5A6478;
+    --text-disabled: #A0AABA;
+}
+body.light-mode .topbar {
+    background: rgba(240,242,245,.94);
+    border-bottom-color: var(--border-hairline);
+}
+body.light-mode .theme-toggle-fab {
+    color: #F59E0B;
+    box-shadow: 0 4px 24px rgba(0,0,0,.18), 0 0 0 1px var(--border-hairline);
+}
+body.light-mode .theme-toggle-fab:hover {
+    background: #F59E0B;
+    color: #fff;
+    box-shadow: 0 6px 32px rgba(245,158,11,.4), 0 0 0 1px #F59E0B;
+}
