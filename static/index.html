@@ -23,31 +23,36 @@
         
         <div class="command-search">
             <i class="fa-solid fa-magnifying-glass"></i>
-            <input id="searchInput" type="text" placeholder="Search location (e.g., Mysore, Bangalore)..." autocomplete="off">
+            <input id="searchInput" type="text" placeholder="Search location (e.g., Mysore)..." autocomplete="off">
             <div id="searchResults" class="search-results hidden"></div>
         </div>
 
         <div class="topbar-actions">
-            <div class="weather-strip" id="weatherBar">
-                <span class="weather-label">Weather:</span>
-            </div>
-            <button class="alert-button" id="alertBtn" title="Active Alerts">
-                <i class="fa-solid fa-bell"></i>
-                <span id="alertCount">0</span>
-            </button>
-            <button class="sync-button" id="btnAddReport" title="Add New Report">
-                <i class="fa-solid fa-plus"></i> Add Report
-            </button>
-            <button class="theme-toggle-btn" id="themeToggle" title="Toggle Theme"></button>
+            <div class="weather-strip" id="weatherBar"><span class="weather-label">Weather:</span></div>
+            <button class="alert-button" title="Active Alerts"><i class="fa-solid fa-bell"></i><span>0</span></button>
+            <button class="sync-button" id="btnRefresh" title="Sync Data"><i class="fa-solid fa-rotate"></i> Sync</button>
+            <button class="theme-toggle-btn" title="Toggle Theme"></button>
         </div>
 
         <div id="hamburgerDropdown" class="hamburger-dropdown">
             <button id="btnAdvViz"><i class="fa-solid fa-chart-line"></i> Advanced Viz</button>
             <button id="btnResetTime"><i class="fa-solid fa-clock-rotate-left"></i> Reset Time Filter</button>
             <div class="divider"></div>
-            <button id="btnRefresh"><i class="fa-solid fa-rotate"></i> Sync Data</button>
+            <button id="btnRefreshMobile"><i class="fa-solid fa-rotate"></i> Sync Data</button>
         </div>
     </header>
+
+    <!-- Time Slider -->
+    <div class="time-slider-bar" id="timeSlider">
+        <label>Time Filter:</label>
+        <input type="range" id="hourSlider" min="-1" max="23" value="-1">
+        <span class="hour-readout" id="hourLabel">All Hours</span>
+        <button class="btn-sm time-preset" data-hour="-1">All</button>
+        <button class="btn-sm time-preset" data-hour="6">6 AM</button>
+        <button class="btn-sm time-preset" data-hour="12">12 PM</button>
+        <button class="btn-sm time-preset" data-hour="18">6 PM</button>
+        <button class="btn-sm time-preset" data-hour="22">10 PM</button>
+    </div>
 
     <!-- Alert Ticker -->
     <div class="alert-strip">
@@ -57,7 +62,6 @@
 
     <!-- Main Grid -->
     <div class="ops-shell">
-        <!-- Left Rail -->
         <aside class="left-rail">
             <div class="rail-group">
                 <p>Navigation</p>
@@ -82,9 +86,12 @@
                 <label class="layer-toggle"><input type="checkbox" checked> <span class="swatch repeat"></span> <span>Stations</span></label>
                 <label class="layer-toggle"><input type="checkbox" checked> <span class="swatch risk"></span> <span>Red Zones</span></label>
             </div>
+            <div class="rail-group">
+                <p>Socio-Economic</p>
+                <canvas id="chartSocio" height="150"></canvas>
+            </div>
         </aside>
 
-        <!-- Map Section -->
         <main class="situation-map" id="sec-map">
             <div id="map"></div>
             <div class="map-toolbar">
@@ -100,27 +107,39 @@
             </div>
         </main>
 
-        <!-- Right Panel -->
         <aside class="right-panel">
             <div class="kpi-stack">
-                <div class="kpi-card"><strong id="kpiTotal">0</strong><span>Total Incidents</span></div>
+                <div class="kpi-card"><strong class="stat-num" data-count="0">0</strong><span>Total Incidents</span></div>
                 <div class="mini-kpis">
-                    <div><strong id="kpiPending">0</strong><p>Pending</p></div>
-                    <div><strong id="kpiCharged">0</strong><p>Chargesheet</p></div>
-                    <div><strong id="kpiHighRisk">0</strong><p>High Risk</p></div>
+                    <div><strong class="stat-num" data-count="1">0</strong><p>Pending</p></div>
+                    <div><strong class="stat-num" data-count="2">0</strong><p>Chargesheet</p></div>
+                    <div><strong class="stat-num" data-count="3">0</strong><p>Districts</p></div>
+                    <div><strong class="stat-num" data-count="4">0</strong><p>Stations</p></div>
+                    <div><strong class="stat-num" data-count="5">0</strong><p>High Risk</p></div>
                 </div>
             </div>
             <div class="intel-panel">
-                <div class="panel-heading"><span>Hotspot Analysis</span> <small>Top 5</small></div>
-                <div class="hotspot-list" id="hotspotList"></div>
+                <div class="panel-heading"><span>Monthly Trend</span></div>
+                <canvas id="chartTrend" height="100"></canvas>
             </div>
             <div class="intel-panel">
-                <div class="panel-heading"><span>Trend (24h)</span></div>
-                <canvas id="chartTrend" height="100"></canvas>
+                <div class="panel-heading"><span>Crime Types</span></div>
+                <canvas id="chartTypes" height="120"></canvas>
+            </div>
+            <div class="intel-panel">
+                <div class="panel-heading"><span>Hourly Distribution</span></div>
+                <canvas id="chartHourly" height="100"></canvas>
+            </div>
+            <div class="intel-panel">
+                <div class="panel-heading"><span>Severity</span></div>
+                <canvas id="chartSeverity" height="100"></canvas>
+            </div>
+            <div class="intel-panel">
+                <div class="panel-heading"><span>Hotspot Analysis</span> <small>Top 10</small></div>
+                <div class="hotspot-list" id="hotspotList"></div>
             </div>
         </aside>
 
-        <!-- Bottom Drawer -->
         <section class="bottom-drawer" id="bottomDrawer">
             <div class="drawer-handle" id="drawerHandle"><i class="fa-solid fa-grip-lines"></i></div>
             <div class="drawer-tabs">
@@ -130,15 +149,9 @@
                 <a href="#sec-offenders"><i class="fa-solid fa-user-secret"></i> Offenders</a>
             </div>
             <div class="drawer-content">
-                <!-- Network Lens -->
                 <div class="lens-card wide" id="networkLens">
                     <div class="lens-title-row">
                         <h2><i class="fa-solid fa-project-diagram"></i> Network & Link Analysis</h2>
-                        <div class="network-toolbar">
-                            <button data-net-filter="all" class="active">All</button>
-                            <button data-net-filter="Suspect">Suspects</button>
-                            <button data-net-filter="Victim">Victims</button>
-                        </div>
                     </div>
                     <div id="networkGraph"></div>
                     <div class="network-legend">
@@ -147,29 +160,23 @@
                         <span><i class="witness"></i> Witness</span>
                     </div>
                 </div>
-
-                <!-- Predict Lens -->
                 <div class="lens-card" id="sec-predict">
                     <h2><i class="fa-solid fa-brain"></i> Predictive Risk</h2>
                     <div class="table-wrap">
                         <table class="data-table">
-                            <thead><tr><th>District</th><th>Trend</th><th>Risk</th></tr></thead>
+                            <thead><tr><th>District</th><th>Trend</th><th>Next Mo.</th><th>Risk</th><th>Change</th></tr></thead>
                             <tbody id="predTable"></tbody>
                         </table>
                     </div>
                 </div>
-
-                <!-- Anomaly Lens -->
                 <div class="lens-card" id="anomalyLens">
                     <h2><i class="fa-solid fa-triangle-exclamation"></i> Anomalies</h2>
                     <div class="anomaly-list" id="anomalyList"></div>
                 </div>
-
-                <!-- Offenders Lens -->
                 <div class="lens-card" id="sec-offenders">
                     <div class="lens-title-row">
                         <h2><i class="fa-solid fa-user-secret"></i> Repeat Offenders</h2>
-                        <button class="btn-sm" id="openSuspectModal"><i class="fa-solid fa-plus"></i> Add</button>
+                        <button class="btn-sm" id="suspectFab"><i class="fa-solid fa-plus"></i> Manage</button>
                     </div>
                     <div class="offender-cards" id="offenderCards"></div>
                 </div>
@@ -177,36 +184,24 @@
         </section>
     </div>
 
-    <!-- Add Report Modal -->
-    <div class="modal-backdrop hidden" id="reportModal">
-        <div class="modal-card">
-            <div class="modal-head">
-                <h3>Add Intelligence Report</h3>
-                <button class="modal-close" data-modal-close>&times;</button>
-            </div>
-            <div class="modal-body">
-                <form id="reportForm">
-                    <div class="suspect-form">
-                        <select id="rCrime" required></select>
-                        <select id="rDistrict" required></select>
-                        <input type="text" id="rStation" placeholder="Station Name" required>
-                        <div class="row2">
-                            <input type="date" id="rDate" required>
-                            <input type="time" id="rTime" required>
-                        </div>
-                        <div class="row2">
-                            <input type="number" id="rLat" placeholder="Latitude" step="0.01" required>
-                            <input type="number" id="rLng" placeholder="Longitude" step="0.01" required>
-                        </div>
-                        <select id="rStatus">
-                            <option>Under Investigation</option>
-                            <option>Chargesheet Filed</option>
-                            <option>Closed - Untraced</option>
-                        </select>
-                        <textarea id="rMO" placeholder="Modus Operandi (How crime occurred)" rows="2"></textarea>
-                        <button type="submit" class="btn-primary">Submit Report</button>
-                    </div>
-                </form>
+    <!-- Advanced Viz Panel -->
+    <div class="adv-panel" id="advPanel">
+        <div class="adv-panel-header">
+            <h2>Advanced Visualization</h2>
+            <button id="closeAdvPanel"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="adv-panel-body">
+            <div id="drillDistrictList"></div>
+            <div id="drillState" style="display: none;">
+                <button class="drill-back-btn" id="btnResetDrill"><i class="fa-solid fa-arrow-left"></i> Back to Districts</button>
+                <h3 id="drillDistrictName"></h3>
+                <div id="drillStats"></div>
+                <h4>Stations</h4>
+                <div id="drillStations"></div>
+                <h4>Crime Types</h4>
+                <canvas id="drillCrimeChart" height="100"></canvas>
+                <h4>Time Distribution</h4>
+                <canvas id="drillTimeChart" height="100"></canvas>
             </div>
         </div>
     </div>
@@ -216,12 +211,10 @@
         <div class="modal-card">
             <div class="modal-head">
                 <h3>Suspect Management</h3>
-                <button class="modal-close" data-modal-close>&times;</button>
+                <button class="modal-close" id="suspectClose">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="suspect-search">
-                    <input type="text" id="sSearch" placeholder="Search suspects...">
-                </div>
+                <div class="suspect-search"><input type="text" id="sSearch" placeholder="Search suspects..."></div>
                 <div class="suspect-list" id="suspectList"></div>
                 <hr style="margin: 16px 0; border-color: var(--border-soft);">
                 <h3 style="margin-bottom: 10px;">Add New Suspect</h3>
@@ -233,19 +226,28 @@
                                 <option value="suspect">Suspect</option>
                                 <option value="victim">Victim</option>
                                 <option value="witness">Witness</option>
+                                <option value="accused">Accused</option>
                             </select>
                             <input type="number" id="sAge" placeholder="Age" min="18" max="120">
                         </div>
                         <input type="text" id="sAlias" placeholder="Alias (Optional)">
+                        <select id="sGender">
+                            <option value="">Select Gender</option>
+                            <option value="M">Male</option>
+                            <option value="F">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
                         <input type="text" id="sLocation" placeholder="Last Known Location">
-                        <button type="submit" class="btn-primary">Add Person</button>
+                        <textarea id="sNotes" placeholder="Notes (Optional)" rows="2"></textarea>
+                        <input type="number" id="sIncident" placeholder="Link to Incident ID (Optional)">
+                        <button type="submit" class="btn-primary" id="sSave">Add Person</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- Toast -->
+    <div class="fallback-badge" id="fallbackBadge" style="display: none;">FALLBACK MODE</div>
     <div class="toast" id="toast"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
