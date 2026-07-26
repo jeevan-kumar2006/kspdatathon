@@ -1,6 +1,9 @@
-"""KSP Crime Intelligence Platform — Configuration & Reference Data"""
+import os
+from pathlib import Path
 
-DB_PATH = "ksp_crime.db"
+# Use directory of this file so DB is always found regardless of CWD
+_BASE_DIR = Path(__file__).parent
+DB_PATH = str(_BASE_DIR / "ksp_crime.db")
 
 # External API endpoints (all free, no keys required)
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
